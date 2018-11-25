@@ -1,0 +1,9 @@
+[package]
+name = "prestige"
+version = "0.1.0"
+authors = ["dineshadepu <adepu.dinesh.a@gmail.com>"]
+
+[dependencies]
+rayon = "1.0.3"
+simple_shapes = {path = "../simple_shapes"}
+fluid = "0.3.0"
