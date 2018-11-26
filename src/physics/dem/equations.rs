@@ -55,67 +55,29 @@ pub fn body_force(d_fx: &mut [f32], d_fy: &mut [f32], d_m: &[f32], gx: f32, gy: 
 
 impl RK2Integrator for DEM {
     fn initialize(&mut self) {
-        let (d_x, d_y, d_u, d_v, d_x0, d_y0, d_u0, d_v0) = (
-            &self.x,
-            &self.y,
-            &self.u,
-            &self.v,
-            &mut self.x0,
-            &mut self.y0,
-            &mut self.u0,
-            &mut self.v0,
-        );
-        for i in 0..d_x.len() {
-            d_x0[i] = d_x[i];
-            d_y0[i] = d_y[i];
-            d_u0[i] = d_u[i];
-            d_v0[i] = d_v[i];
+        for i in 0..self.x.len() {
+            self.x0[i] = self.x[i];
+            self.y0[i] = self.y[i];
+            self.u0[i] = self.u[i];
+            self.v0[i] = self.v[i];
         }
     }
 
     fn stage1(&mut self, dt: f32) {
         let dtb2 = dt / 2.;
-        let (d_x, d_y, d_u, d_v, d_fx, d_fy, d_x0, d_y0, d_u0, d_v0, d_m) = (
-            &mut self.x,
-            &mut self.y,
-            &mut self.u,
-            &mut self.v,
-            &self.fx,
-            &self.fy,
-            &self.x0,
-            &self.y0,
-            &self.u0,
-            &self.v0,
-            &self.m,
-        );
-        let dtb2 = dt / 2.;
-        for i in 0..d_x.len() {
-            d_u[i] = d_u0[i] + d_fx[i] / d_m[i] * dtb2;
-            d_v[i] = d_v0[i] + d_fy[i] / d_m[i] * dtb2;
-            d_x[i] = d_x0[i] + d_u[i] * dt;
-            d_y[i] = d_y0[i] + d_v[i] * dt;
+        for i in 0..self.x.len() {
+            self.u[i] = self.u0[i] + self.fx[i] / self.m[i] * dtb2;
+            self.v[i] = self.v0[i] + self.fy[i] / self.m[i] * dtb2;
+            self.x[i] = self.x0[i] + self.u[i] * dt;
+            self.y[i] = self.y0[i] + self.v[i] * dt;
         }
     }
     fn stage2(&mut self, dt: f32) {
-        let (d_x, d_y, d_u, d_v, d_fx, d_fy, d_x0, d_y0, d_u0, d_v0, d_m) = (
-            &mut self.x,
-            &mut self.y,
-            &mut self.u,
-            &mut self.v,
-            &self.fx,
-            &self.fy,
-            &self.x0,
-            &self.y0,
-            &self.u0,
-            &self.v0,
-            &self.m,
-        );
-
-        for i in 0..d_x.len() {
-            d_u[i] = d_u0[i] + d_fx[i] / d_m[i] * dt;
-            d_v[i] = d_v0[i] + d_fy[i] / d_m[i] * dt;
-            d_x[i] = d_x0[i] + d_u[i] * dt;
-            d_y[i] = d_y0[i] + d_v[i] * dt;
+        for i in 0..self.x.len() {
+            self.u[i] = self.u0[i] + self.fx[i] / self.m[i] * dt;
+            self.v[i] = self.v0[i] + self.fy[i] / self.m[i] * dt;
+            self.x[i] = self.x0[i] + self.u[i] * dt;
+            self.y[i] = self.y0[i] + self.v[i] * dt;
         }
     }
 }
