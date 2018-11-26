@@ -141,7 +141,7 @@ cargo run --example serial 0.1
 
 ** Configuration 1
   By varying the spacing between particles, time taken serial code on
-  configuration 1 is saved in table [[tab:parallel-time-configuration-1]].
+  configuration 1 is saved in table [[tab:parallel-time-configuration-1-pysph]].
 
   #+NAME: tab:parallel-time-configuration-1
 |------------------+---------------------------------------------+-----------------------|
@@ -151,6 +151,16 @@ cargo run --example serial 0.1
 | 9932 (0.0109)    | 2.068 sec                                   | 0.240 sec             |
 | 100421 (0.00324) | 22.387 sec                                  | 1.622 sec             |
 | 1016002 (0.001)  | 1 minutes 53 sec (154 sec) (overflow error) | 18.387 sec            |
+
+  Time taken for running it in pysph is in table
+  #+NAME: tab:parallel-time-configuration-1-pysph
+|------------------+---------------|
+| Particles        | parallel time |
+|------------------+---------------|
+| 262 (0.1)        | 0.11 sec      |
+| 9932 (0.0109)    | 0.163 sec     |
+| 100421 (0.00324) | 0.6 sec       |
+| 1016002 (0.001)  | 4.8 sec       |
 
 ** Configuration 2
   By varying the spacing between particles, time taken serial code on
