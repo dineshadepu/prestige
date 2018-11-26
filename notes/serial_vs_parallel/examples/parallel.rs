@@ -1,16 +1,23 @@
+extern crate indicatif;
 extern crate prestige;
 extern crate simple_shapes;
 
+// external crate imports
+use indicatif::{ProgressBar, ProgressStyle};
+
 // crates imports
 use prestige::{
-    contact_search::{stash},
-    physics::dem::{equations::{body_force, contact_force_par}, DEM},
-    RK2Integrator,
+    contact_search::stash,
+    physics::dem::{
+        equations::{body_force, contact_force_par},
+        DEM,
+    },
+    RK2Integrator, WriteOutput,
 };
 use simple_shapes::{grid_arange, tank};
 
 // std imports
-use std::env;
+use std::{fs, env};
 
 fn main() {
     let args: Vec<_> = env::args().collect();
@@ -83,6 +90,20 @@ fn main() {
     let dt = 1e-4;
     let mut t = 0.;
     let tf = 10. * dt;
+    let mut step_no = 0;
+    let pfreq = 100;
+
+    let version = env!("CARGO_MANIFEST_DIR");
+    let dir_name = version.to_owned() + "/parallel_dam_break_output";
+    let _tmp = fs::create_dir(&dir_name);
+
+    // create a progressbar
+    let total_steps = (tf / dt) as u64;
+    println!("\n \n");
+    let pb = ProgressBar::new(total_steps);
+    pb.set_style(ProgressStyle::default_bar()
+                 .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({eta})")
+                 .progress_chars("#>-"));
 
     while t < tf {
         // stash the particles into the world's cells
@@ -152,6 +173,19 @@ fn main() {
 
         body.stage2(dt);
 
+        if step_no % pfreq == 0 {
+            // println!("{}", step_no);
+            let filename = format!("{}/tank_{}.vtk", &dir_name, step_no);
+            tank.write_vtk(filename);
+
+            let filename = format!("{}/body_{}.vtk", &dir_name, step_no);
+            body.write_vtk(filename);
+            // println!("{} ", step_no);
+        }
+        step_no += 1;
         t += dt;
+        // progressbar increment
+        pb.inc(1);
     }
+    pb.finish_with_message("Simulation succesfully completed");
 }

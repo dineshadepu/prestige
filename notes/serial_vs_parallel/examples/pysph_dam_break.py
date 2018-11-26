@@ -92,9 +92,10 @@ class DEMStep(IntegratorStep):
 class FluidStructureInteration(Application):
     def initialize(self):
         # self.spacing = 0.1
+        self.spacing = 0.01
         # self.spacing = 0.0109
         # self.spacing = 0.00324
-        self.spacing = 0.001
+        # self.spacing = 0.001
 
     def create_particles(self):
         spcg = self.spacing
