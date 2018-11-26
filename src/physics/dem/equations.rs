@@ -9,33 +9,48 @@ use RK2Integrator;
 pub fn contact_force_par(
     d_x: &[f32],
     d_y: &[f32],
+    d_r: &[f32],
     d_fx: &mut [f32],
     d_fy: &mut [f32],
     s_x: &[f32],
     s_y: &[f32],
+    s_r: &[f32],
     s_nnps_id: usize,
     nnps: &NNPS,
+    kn: f32,
 ) {
     d_fx.par_iter_mut()
-        .zip(d_fy.par_iter_mut().zip(d_x.par_iter().zip(d_y.par_iter())))
-        .for_each(|(d_fxi, (d_fyi, (d_xi, d_yi)))| {
-            let nbrs = get_neighbours(*d_xi, *d_yi, s_nnps_id, &nnps);
+        .zip(
+            d_fy.par_iter_mut()
+                .zip(d_x.par_iter().zip(d_y.par_iter().zip(d_r.par_iter()))),
+        )
+        .for_each(|(d_fx_i, (d_fy_i, (d_x_i, (d_y_i, d_r_i))))| {
+            let nbrs = get_neighbours(*d_x_i, *d_y_i, s_nnps_id, &nnps);
             for &j in nbrs.iter() {
-                let dx = d_xi - s_x[j];
-                let dy = d_yi - s_y[j];
-                *d_fxi += 1e5 * dx;
-                *d_fyi += 1e5 * dy;
+                let dx = d_x_i - s_x[j];
+                let dy = d_y_i - s_y[j];
+                let rij = (dx.powf(2.) + dy.powf(2.)).sqrt();
+                // eliminate the interaction between same particle
+                if rij > 1e-12 {
+                    // if the two particles are in overlap
+                    let nij_x = dx / rij;
+                    let nij_y = dy / rij;
+
+                    let overlap = d_r_i + s_r[j] - rij;
+                    if overlap > 0. {
+                        *d_fx_i += kn * overlap * nij_x;
+                        *d_fy_i += kn * overlap * nij_y;
+                    }
+                }
             }
         });
 }
 
-pub fn body_force(d_fx: &mut [f32], d_fy: &mut [f32], gx: f32, gy: f32) {
-    d_fx.par_iter_mut().zip(d_fy.par_iter_mut()).for_each(
-        |(d_fx_i, d_fy_i)| {
-            *d_fx_i = gx;
-            *d_fy_i = gy;
-        },
-    );
+pub fn body_force(d_fx: &mut [f32], d_fy: &mut [f32], d_m: &[f32], gx: f32, gy: f32) {
+    for i in 0..d_fx.len(){
+        d_fx[i] = gx * d_m[i];
+        d_fy[i] = gy * d_m[i];
+    }
 }
 
 impl RK2Integrator for DEM {
@@ -78,18 +93,13 @@ impl RK2Integrator for DEM {
             &self.v0,
             &self.m,
         );
-
-        d_x.par_iter_mut()
-            .zip(
-                d_y.par_iter_mut()
-                    .zip(d_u.par_iter_mut().zip(d_v.par_iter_mut().enumerate())),
-            )
-            .for_each(|(d_x_i, (d_y_i, (d_u_i, (i, d_v_i))))| {
-                *d_u_i = d_u0[i] + d_fx[i] / d_m[i] * dtb2;
-                *d_v_i = d_v0[i] + d_fy[i] / d_m[i] * dtb2;
-                *d_x_i = d_x0[i] + *d_u_i * dtb2;
-                *d_y_i = d_y0[i] + *d_v_i * dtb2;
-            });
+        let dtb2 = dt / 2.;
+        for i in 0..d_x.len(){
+            d_u[i] = d_u0[i] + d_fx[i] / d_m[i] * dtb2;
+            d_v[i] = d_v0[i] + d_fy[i] / d_m[i] * dtb2;
+            d_x[i] = d_x0[i] + d_u[i] * dt;
+            d_y[i] = d_y0[i] + d_v[i] * dt;
+        }
     }
     fn stage2(&mut self, dt: f32) {
         let (d_x, d_y, d_u, d_v, d_fx, d_fy, d_x0, d_y0, d_u0, d_v0, d_m) = (
@@ -106,16 +116,11 @@ impl RK2Integrator for DEM {
             &self.m,
         );
 
-        d_x.par_iter_mut()
-            .zip(
-                d_y.par_iter_mut()
-                    .zip(d_u.par_iter_mut().zip(d_v.par_iter_mut().enumerate())),
-            )
-            .for_each(|(d_x_i, (d_y_i, (d_u_i, (i, d_v_i))))| {
-                *d_u_i = d_u0[i] + d_fx[i] / d_m[i] * dt;
-                *d_v_i = d_v0[i] + d_fy[i] / d_m[i] * dt;
-                *d_x_i = d_x0[i] + *d_u_i * dt;
-                *d_y_i = d_y0[i] + *d_v_i * dt;
-            });
+        for i in 0..d_x.len(){
+            d_u[i] = d_u0[i] + d_fx[i] / d_m[i] * dt;
+            d_v[i] = d_v0[i] + d_fy[i] / d_m[i] * dt;
+            d_x[i] = d_x0[i] + d_u[i] * dt;
+            d_y[i] = d_y0[i] + d_v[i] * dt;
+        }
     }
 }

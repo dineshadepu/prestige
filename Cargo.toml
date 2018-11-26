@@ -7,3 +7,4 @@ authors = ["dineshadepu <adepu.dinesh.a@gmail.com>"]
 rayon = "1.0.3"
 simple_shapes = {path = "../simple_shapes"}
 fluid = "0.3.0"
+indicatif = "0.10.1"
