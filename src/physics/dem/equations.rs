@@ -47,7 +47,7 @@ pub fn contact_force_par(
 }
 
 pub fn body_force(d_fx: &mut [f32], d_fy: &mut [f32], d_m: &[f32], gx: f32, gy: f32) {
-    for i in 0..d_fx.len(){
+    for i in 0..d_fx.len() {
         d_fx[i] = gx * d_m[i];
         d_fy[i] = gy * d_m[i];
     }
@@ -65,17 +65,12 @@ impl RK2Integrator for DEM {
             &mut self.u0,
             &mut self.v0,
         );
-        d_x0.par_iter_mut()
-            .zip(
-                d_y0.par_iter_mut()
-                    .zip(d_u0.par_iter_mut().zip(d_v0.par_iter_mut().enumerate())),
-            )
-            .for_each(|(d_x0_i, (d_y0_i, (d_u0_i, (i, d_v0_i))))| {
-                *d_x0_i = d_x[i];
-                *d_y0_i = d_y[i];
-                *d_u0_i = d_u[i];
-                *d_v0_i = d_v[i];
-            });
+        for i in 0..d_x.len() {
+            d_x0[i] = d_x[i];
+            d_y0[i] = d_y[i];
+            d_u0[i] = d_u[i];
+            d_v0[i] = d_v[i];
+        }
     }
 
     fn stage1(&mut self, dt: f32) {
@@ -94,7 +89,7 @@ impl RK2Integrator for DEM {
             &self.m,
         );
         let dtb2 = dt / 2.;
-        for i in 0..d_x.len(){
+        for i in 0..d_x.len() {
             d_u[i] = d_u0[i] + d_fx[i] / d_m[i] * dtb2;
             d_v[i] = d_v0[i] + d_fy[i] / d_m[i] * dtb2;
             d_x[i] = d_x0[i] + d_u[i] * dt;
@@ -116,7 +111,7 @@ impl RK2Integrator for DEM {
             &self.m,
         );
 
-        for i in 0..d_x.len(){
+        for i in 0..d_x.len() {
             d_u[i] = d_u0[i] + d_fx[i] / d_m[i] * dt;
             d_v[i] = d_v0[i] + d_fy[i] / d_m[i] * dt;
             d_x[i] = d_x0[i] + d_u[i] * dt;
