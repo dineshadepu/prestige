@@ -1,0 +1,28 @@
+* What is this?
+  This is library to implement particle methods based algorithms. This is highly
+  inspired from [[https://github.com/pypr/pysph][pysph]] ( I would say clone). Particle methods like
+
+  - Discrete element method.
+  - Smoothed particle hydrodynamics
+
+  will be implemented
+
+
+* How to run
+  First make sure you have rust installed. You can find the instructions at [[https://www.rust-lang.org/en-US/][here]].
+  To run an [[https://github.com/dineshadepu/prestige/blob/master/examples/dam_break_dem.rs][example]], clone the repository.
+
+  #+NAME: name
+  #+BEGIN_SRC sh
+git clone https://github.com/dineshadepu/prestige
+cd prestige
+  #+END_SRC
+
+  Then run the example by
+  #+NAME: name
+  #+BEGIN_SRC sh
+cargo run --example dam_break_dem
+  #+END_SRC
+
+  This will generate output (=vtk= files) in =dam_break_dem_output= folder. By
+  using paraview we can visualize the particles.
