@@ -64,6 +64,60 @@ pub struct NNPS {
 }
 
 /**
+A trait to make the `stash` function generic. This trait is used to
+get the reference of to the fields of the struct `x, y, h`. Since
+to evaluate neighbours or to store the particle indices in a cell
+all we need is position and the size of the particle.
+
+A simple macro is created to implement this trait. So any entity or `struct`
+which has fields `x, y, h` can implement this trait by simply executing
+
+```
+
+impl_GetXYH!(DEM)
+
+```
+
+One can check `dem` module for this macro usage.
+
+ **/
+pub trait GetXYH {
+    /// Get the `x` field on the struct
+    fn get_x(&self) -> &[f32];
+    /// Get the `y` field on the struct
+    fn get_y(&self) -> &[f32];
+    /// Get the `h` field on the struct
+    fn get_h(&self) -> &[f32];
+    /// Get the `nnps_id` field on the struct.
+    fn get_nnps_id(&self) -> usize;
+    /// Get the `(x, y, h)` fields on the struct.
+    fn get_xyh(&self) -> (&[f32], &[f32], &[f32]);
+}
+
+#[macro_export]
+macro_rules! impl_GetXYH{
+    ($($t:ty)*) => ($(
+        impl GetXYH for $t {
+            fn get_x(&self) ->  &[f32]{
+                &self.x
+            }
+            fn get_y(&self) ->  &[f32]{
+                &self.x
+            }
+            fn get_h(&self) ->  &[f32]{
+                &self.x
+            }
+            fn get_nnps_id(&self) ->  usize{
+                self.nnps_idx
+            }
+            fn get_xyh(&self) -> (&[f32], &[f32], &[f32]) {
+                (&self.x, &self.y, &self.h)
+            }
+        }
+    )*)
+}
+
+/**
 Saves all the particles in respective blocks `Cell` of world.
 
 Given all entites (`DEM` `SPH` `ParticleArray`) in the simulation, finds the
@@ -76,7 +130,7 @@ respective cell block. Which is further used by `get_neighbours` function.
  *TODO*: This should be generic. This has to be updated to support kernels.
  **/
 
-pub fn stash(world: Vec<&DEM>) -> NNPS {
+pub fn stash<T: GetXYH>(world: Vec<&T>) -> NNPS {
     // maximum size of a particle
     let mut max_size = 0.;
     let mut x_min = std::f32::INFINITY;
@@ -85,21 +139,22 @@ pub fn stash(world: Vec<&DEM>) -> NNPS {
     let mut y_max = -std::f32::INFINITY;
 
     for entity in &world {
-        for i in 0..entity.x.len() {
-            if x_min > entity.x[i] {
-                x_min = entity.x[i];
+        let (x, y, h) = entity.get_xyh();
+        for i in 0..x.len() {
+            if x_min > x[i] {
+                x_min = x[i];
             }
-            if x_max < entity.x[i] {
-                x_max = entity.x[i];
+            if x_max < x[i] {
+                x_max = x[i];
             }
-            if y_min > entity.y[i] {
-                y_min = entity.y[i];
+            if y_min > y[i] {
+                y_min = y[i];
             }
-            if y_max < entity.y[i] {
-                y_max = entity.y[i];
+            if y_max < y[i] {
+                y_max = y[i];
             }
-            if max_size < entity.h[i] {
-                max_size = entity.h[i];
+            if max_size < h[i] {
+                max_size = h[i];
             }
         }
     }
@@ -121,14 +176,15 @@ pub fn stash(world: Vec<&DEM>) -> NNPS {
 
     // Stash the particles in the requisite cells
     for entity in &world {
-        let nnps_idx = entity.nnps_idx;
-        for i in 0..entity.x.len() {
-            let x_index = ((entity.x[i] - x_min) / max_size) as usize;
-            let y_index = ((entity.y[i] - y_min) / max_size) as usize;
+        let nnps_id = entity.get_nnps_id();
+        let (x, y, _h) = entity.get_xyh();
+        for i in 0..x.len() {
+            let x_index = ((x[i] - x_min) / max_size) as usize;
+            let y_index = ((y[i] - y_min) / max_size) as usize;
 
             // one dimentional index is
             let cell_no = x_index + no_x_cells * y_index;
-            cells[cell_no].indices[nnps_idx].push(i);
+            cells[cell_no].indices[nnps_id].push(i);
         }
     }
 
@@ -210,7 +266,7 @@ mod tests {
         (nnps.no_y_cells)
             .should()
             .be_equal_to(((2. * ent1.h[0] - (-2. * ent1.h[0])) / (2. * ent1.h[0])) as usize);
-        (nnps.cells.len()).should().be_equal_to(12*2);
+        (nnps.cells.len()).should().be_equal_to(12 * 2);
 
         // check the particles stashed in cells
         {

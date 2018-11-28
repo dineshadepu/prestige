@@ -3,6 +3,8 @@ pub mod equations;
 
 // local library imports
 use WriteOutput;
+// import to implement this trait for nnps functionality
+use contact_search::GetXYH;
 
 // std library imports
 use std::fs::OpenOptions;
@@ -30,8 +32,6 @@ impl WriteOutput for DEM{
     fn write_vtk(&self, output: String) {
         // This is taken from
         // https://lorensen.github.io/VTKExamples/site/VTKFileFormats/#legacy-file-examples
-        // let mut filename: String = current_exe().unwrap().to_str().unwrap().to_string();
-        // filename.push_str(".vtk");
         let x = &self.x;
         let y = &self.y;
         let r = &self.r;
@@ -68,3 +68,6 @@ impl WriteOutput for DEM{
         }
     }
 }
+
+// implement nnps macro
+impl_GetXYH!(DEM);

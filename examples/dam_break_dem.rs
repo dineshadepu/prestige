@@ -20,7 +20,7 @@ use simple_shapes::{grid_arange, tank};
 use std::fs;
 
 fn main() {
-    let spacing = 0.1;
+    let spacing = 0.03;
     let (xt, yt) = tank(-1., 3., spacing, -1., 4., spacing, 1);
     let (xb, yb) = grid_arange(
         1.03,
