@@ -3,7 +3,7 @@ extern crate simple_shapes;
 
 // crates imports
 use prestige::{
-    contact_search::{get_neighbours, stash, NNPS},
+    contact_search::{get_neighbours, stash, WorldBounds, NNPS},
     physics::dem::{equations::body_force, DEM},
     RK2Integrator,
 };
@@ -50,7 +50,7 @@ pub fn contact_force(
 
 fn main() {
     let args: Vec<_> = env::args().collect();
-    if args.len() < 1 {
+    if args.len() < 2 {
         println!("Please give the spacing between the particles");
     }
 
@@ -115,6 +115,10 @@ fn main() {
         body.x.len() + tank.x.len()
     );
 
+    // setup nnps
+    let world_bounds = WorldBounds::new(-1.1, 3.1, -1.1, 4.1, spacing);
+    let mut nnps = NNPS::new(vec![&body, &tank], &world_bounds);
+
     // solver data
     let dt = 1e-4;
     let mut t = 0.;
@@ -122,7 +126,7 @@ fn main() {
 
     while t < tf {
         // stash the particles into the world's cells
-        let nnps = stash(vec![&body, &tank]);
+        stash(vec![&body, &tank], &mut nnps);
 
         body.initialize();
 
