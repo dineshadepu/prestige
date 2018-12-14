@@ -1,8 +1,3 @@
-#[cfg(test)]
-extern crate fluid;
-extern crate rayon; // 1.0.3
-extern crate simple_shapes;
-
 // see this for better understanding
 // https://doc.rust-lang.org/book/first-edition/macros.html
 #[macro_use]

@@ -1,14 +1,19 @@
 // sub modules
+pub mod dem_linear;
+pub mod dem_nonlinear;
 pub mod equations;
 
 // local library imports
-use WriteOutput;
+use crate::WriteOutput;
 // import to implement this trait for nnps functionality
-use contact_search::GetXYH;
+use crate::contact_search::GetXYH;
 
 // std library imports
-use std::fs::OpenOptions;
-use std::io::Write;
+use std::path::PathBuf;
+
+// io library
+use vtkio::model::*;
+use vtkio::{export};
 
 pub struct DEM {
     pub x: Vec<f32>,
@@ -28,44 +33,68 @@ pub struct DEM {
     pub no_par: usize,
 }
 
-impl WriteOutput for DEM{
+impl WriteOutput for DEM {
     fn write_vtk(&self, output: String) {
-        // This is taken from
-        // https://lorensen.github.io/VTKExamples/site/VTKFileFormats/#legacy-file-examples
         let x = &self.x;
         let y = &self.y;
+        let u = &self.u;
+        let v = &self.v;
         let r = &self.r;
         let fx = &self.fx;
         let fy = &self.fy;
-        let filename = output;
 
-        let mut file = OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .open(filename)
-            .unwrap();
-
-        writeln!(file, "# vtk DataFile Version 3.0").unwrap();
-        writeln!(file, "Time some").unwrap();
-        writeln!(file, "ASCII\nDATASET UNSTRUCTURED_GRID").unwrap();
-
-        writeln!(file, "POINTS {} float", x.len()).unwrap();
+        let mut pos = vec![];
+        let mut vel = vec![];
+        let mut force = vec![];
+        let mut radius = vec![];
         for i in 0..x.len() {
-            writeln!(file, "{:.4} {:.4} 0.0", x[i], y[i]).unwrap();
+            pos.push(x[i]);
+            pos.push(y[i]);
+            pos.push(0.);
+            vel.push(u[i]);
+            vel.push(v[i]);
+            vel.push(0.);
+            force.push(fx[i]);
+            force.push(fy[i]);
+            force.push(0.);
+            radius.push(r[i]);
         }
 
-        writeln!(file, "POINT_DATA {}", x.len()).unwrap();
-        writeln!(file, "SCALARS Diameter float 1").unwrap();
-        writeln!(file, "LOOKUP_TABLE default").unwrap();
-        for i in 0..x.len() {
-            writeln!(file, "{:.4}", r[i]).unwrap();
-        }
+        let mut attributes = Attributes::new();
+        attributes.point.push((
+            "Force".to_string(),
+            Attribute::Vectors { data: force.into() },
+        ));
+        attributes.point.push((
+            "Velocity".to_string(),
+            Attribute::Vectors { data: vel.into() },
+        ));
+        attributes.point.push((
+            "Radius".to_string(),
+            Attribute::Scalars {
+                num_comp: 1,
+                lookup_table: None,
+                data: radius.into(),
+            },
+        ));
 
-        writeln!(file, "VECTORS Force float").unwrap();
-        for i in 0..x.len() {
-            writeln!(file, "{:.4} {:.4} 0.0000", fx[i], fy[i]).unwrap();
-        }
+        let data = DataSet::UnstructuredGrid {
+            points: pos.into(),
+            cells: Cells {
+                num_cells: 0,
+                vertices: vec![],
+            },
+            cell_types: vec![],
+            data: attributes,
+        };
+
+        let vtk = Vtk {
+            version: Version::new((4, 1)),
+            title: String::from("Data"),
+            data: data,
+        };
+
+        let _p =export(vtk, &PathBuf::from(&output));
     }
 }
 

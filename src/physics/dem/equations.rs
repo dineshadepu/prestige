@@ -3,8 +3,8 @@ use rayon::prelude::*;
 
 // local library imports
 use super::DEM;
-use contact_search::{get_neighbours, NNPS};
-use RK2Integrator;
+use crate::contact_search::{get_neighbours, NNPS};
+use crate::RK2Integrator;
 
 pub fn contact_force_par(
     d_x: &[f32],

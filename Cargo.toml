@@ -2,9 +2,11 @@
 name = "prestige"
 version = "0.1.0"
 authors = ["dineshadepu <adepu.dinesh.a@gmail.com>"]
+edition = "2018"
+
 
 [dependencies]
 rayon = "1.0.3"
-simple_shapes = {path = "../simple_shapes"}
-fluid = "0.3.0"
+simple_shapes = "0.1"
 indicatif = "0.10.1"
+vtkio = "0.1.6"
