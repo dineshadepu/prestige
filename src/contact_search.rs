@@ -1,8 +1,3 @@
-use physics::dem::DEM;
-
-#[cfg(test)]
-use simple_shapes::arange;
-
 /// A block in the simulation world
 ///
 /// Saves the indices of the partices which are in
@@ -231,73 +226,4 @@ pub fn get_neighbours(xi: f32, yi: f32, nnps_idx: usize, nnps: &NNPS) -> Vec<usi
     }
 
     nbrs
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use fluid::prelude::*;
-
-    #[test]
-    fn test_nnps_with_single_entity() {
-        // create a world with two entities
-        let spacing = 0.5;
-        let x = arange(0., 5.2, spacing);
-        let num = x.len();
-        let mut ent1 = DEM {
-            x: x,
-            y: vec![0.; num],
-            r: vec![spacing / 2.; num],
-            fx: vec![0.; num],
-            fy: vec![0.; num],
-            h: vec![spacing / 2.; num],
-            nnps_idx: 0,
-        };
-        let nnps = stash(vec![&ent1]);
-
-        // check the dimensions of the simulation
-        (nnps.x_max).should().be_equal_to(5. + 2. * ent1.h[0]);
-        (nnps.x_min).should().be_equal_to(0. - 2. * ent1.h[0]);
-        (nnps.y_max).should().be_equal_to(2. * ent1.h[0]);
-        (nnps.y_min).should().be_equal_to(-2. * ent1.h[0]);
-        (nnps.no_x_cells)
-            .should()
-            .be_equal_to(((5.0 + 2. * ent1.h[0] - (-2. * ent1.h[0])) / (2. * ent1.h[0])) as usize);
-        (nnps.no_y_cells)
-            .should()
-            .be_equal_to(((2. * ent1.h[0] - (-2. * ent1.h[0])) / (2. * ent1.h[0])) as usize);
-        (nnps.cells.len()).should().be_equal_to(12 * 2);
-
-        // check the particles stashed in cells
-        {
-            let cells = &nnps.cells;
-            cells[0].indices[0].len().should().be_equal_to(0);
-            cells[1].indices[0].len().should().be_equal_to(0);
-            cells[2].indices[0].len().should().be_equal_to(0);
-            cells[3].indices[0].len().should().be_equal_to(0);
-            cells[4].indices[0].len().should().be_equal_to(0);
-            cells[5].indices[0].len().should().be_equal_to(0);
-            cells[6].indices[0].len().should().be_equal_to(0);
-            cells[7].indices[0].len().should().be_equal_to(0);
-            cells[8].indices[0].len().should().be_equal_to(0);
-            cells[9].indices[0].len().should().be_equal_to(0);
-            cells[10].indices[0].len().should().be_equal_to(0);
-            cells[11].indices[0].len().should().be_equal_to(0);
-            cells[12].indices[0].len().should().be_equal_to(0);
-            cells[13].indices[0].len().should().be_equal_to(1);
-            cells[14].indices[0].len().should().be_equal_to(1);
-            cells[15].indices[0].len().should().be_equal_to(1);
-            cells[16].indices[0].len().should().be_equal_to(1);
-            cells[17].indices[0].len().should().be_equal_to(1);
-            cells[18].indices[0].len().should().be_equal_to(1);
-            cells[19].indices[0].len().should().be_equal_to(1);
-            cells[20].indices[0].len().should().be_equal_to(1);
-            cells[21].indices[0].len().should().be_equal_to(1);
-            cells[22].indices[0].len().should().be_equal_to(1);
-            cells[23].indices[0].len().should().be_equal_to(1);
-        }
-
-        // Check particle neighbours
-        let nbrs_1 = get_neighbours(ent1.x[0], ent1.y[0], 0, &nnps);
-    }
 }
