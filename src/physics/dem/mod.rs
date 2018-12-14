@@ -13,7 +13,7 @@ use std::path::PathBuf;
 
 // io library
 use vtkio::model::*;
-use vtkio::{export};
+use vtkio::{export_ascii};
 
 pub struct DEM {
     pub x: Vec<f32>,
@@ -94,7 +94,7 @@ impl WriteOutput for DEM {
             data: data,
         };
 
-        let _p =export(vtk, &PathBuf::from(&output));
+        let _p = export_ascii(vtk, &PathBuf::from(&output));
     }
 }
 

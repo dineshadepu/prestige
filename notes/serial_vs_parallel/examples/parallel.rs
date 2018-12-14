@@ -7,7 +7,7 @@ use indicatif::{ProgressBar, ProgressStyle};
 
 // crates imports
 use prestige::{
-    contact_search::stash,
+    contact_search::{NNPS, WorldBounds, stash},
     physics::dem::{
         equations::{body_force, contact_force_par},
         DEM,
@@ -21,7 +21,7 @@ use std::{fs, env};
 
 fn main() {
     let args: Vec<_> = env::args().collect();
-    if args.len() < 1 {
+    if args.len() < 2 {
         println!("Please give the spacing between the particles");
     }
 
@@ -86,6 +86,10 @@ fn main() {
         body.x.len() + tank.x.len()
     );
 
+    // setup nnps
+    let world_bounds = WorldBounds::new(-1.1, 3.1, -1.1, 4.1, spacing);
+    let mut nnps = NNPS::new(vec![&body, &tank], &world_bounds);
+
     // solver data
     let dt = 1e-4;
     let mut t = 0.;
@@ -95,7 +99,11 @@ fn main() {
 
     let version = env!("CARGO_MANIFEST_DIR");
     let dir_name = version.to_owned() + "/parallel_dam_break_output";
-    let _tmp = fs::create_dir(&dir_name);
+
+    match fs::create_dir(&dir_name){
+        Ok(()) => (),
+        Err(_msg) => (),
+    }
 
     // create a progressbar
     let total_steps = (tf / dt) as u64;
@@ -107,7 +115,7 @@ fn main() {
 
     while t < tf {
         // stash the particles into the world's cells
-        let nnps = stash(vec![&body, &tank]);
+        stash(vec![&body, &tank], &mut nnps);
 
         body.initialize();
 

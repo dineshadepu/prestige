@@ -56,6 +56,66 @@ pub struct NNPS {
     pub no_y_cells: usize,
     pub max_size: f32,
     pub cells: Vec<Cell>,
+    pub world_entities: usize,
+}
+
+pub struct WorldBounds {
+    pub x_min: f32,
+    pub x_max: f32,
+    pub y_min: f32,
+    pub y_max: f32,
+    pub max_size: f32,
+}
+
+impl WorldBounds {
+    pub fn new(
+        x_min: f32,
+        x_max: f32,
+        y_min: f32,
+        y_max: f32,
+        max_size: f32,
+    ) -> WorldBounds {
+        WorldBounds {
+            x_min,
+            x_max,
+            y_min,
+            y_max,
+            max_size,
+        }
+    }
+}
+
+impl NNPS {
+    pub fn new<T: GetXYH>(world: Vec<&T>, bounds: &WorldBounds) -> NNPS {
+        {
+            // maximum size of a particle
+            let x_min = bounds.x_min;
+            let x_max = bounds.x_max;
+            let y_min = bounds.y_min;
+            let y_max = bounds.y_max;
+            let max_size = bounds.max_size;
+            let world_entities = world.len();
+
+            // number of cells in x direction are
+            let no_x_cells = ((x_max - x_min) / max_size) as usize;
+            let no_y_cells = ((y_max - y_min) / max_size) as usize;
+
+            // total number of cells are
+            let cells = vec![Cell::new(world.len()); no_x_cells as usize * no_y_cells as usize];
+
+            NNPS {
+                x_min,
+                x_max,
+                y_min,
+                y_max,
+                no_x_cells,
+                no_y_cells,
+                max_size,
+                cells,
+                world_entities,
+            }
+        }
+    }
 }
 
 /**
@@ -125,50 +185,21 @@ respective cell block. Which is further used by `get_neighbours` function.
  *TODO*: This should be generic. This has to be updated to support kernels.
  **/
 
-pub fn stash<T: GetXYH>(world: Vec<&T>) -> NNPS {
-    // maximum size of a particle
-    let mut max_size = 0.;
-    let mut x_min = std::f32::INFINITY;
-    let mut x_max = -std::f32::INFINITY;
-    let mut y_min = std::f32::INFINITY;
-    let mut y_max = -std::f32::INFINITY;
+pub fn stash<T: GetXYH>(world: Vec<&T>, nnps: &mut NNPS) {
+    let x_min = nnps.x_min;
+    let y_min = nnps.y_min;
+    let no_x_cells = nnps.no_x_cells;
+    let max_size = nnps.max_size;
+    let world_entities = nnps.world_entities;
 
-    for entity in &world {
-        let (x, y, h) = entity.get_xyh();
-        for i in 0..x.len() {
-            if x_min > x[i] {
-                x_min = x[i];
-            }
-            if x_max < x[i] {
-                x_max = x[i];
-            }
-            if y_min > y[i] {
-                y_min = y[i];
-            }
-            if y_max < y[i] {
-                y_max = y[i];
-            }
-            if max_size < h[i] {
-                max_size = h[i];
-            }
+    let cells = &mut nnps.cells;
+
+    // clean the cells
+    for i in 0..cells.len() {
+        for j in 0..world_entities{
+            cells[i].indices[j].clear()
         }
     }
-    // now set the size of the cell
-    max_size = 2. * max_size;
-
-    // increase the limits of the simulation world
-    x_max += max_size;
-    x_min -= max_size;
-    y_max += max_size;
-    y_min -= max_size;
-
-    // number of cells in x direction are
-    let no_x_cells = ((x_max - x_min) / max_size) as usize;
-    let no_y_cells = ((y_max - y_min) / max_size) as usize;
-
-    // total number of cells are
-    let mut cells = vec![Cell::new(world.len()); no_x_cells as usize * no_y_cells as usize];
-
     // Stash the particles in the requisite cells
     for entity in &world {
         let nnps_id = entity.get_nnps_id();
@@ -178,21 +209,10 @@ pub fn stash<T: GetXYH>(world: Vec<&T>) -> NNPS {
             let y_index = ((y[i] - y_min) / max_size) as usize;
 
             // one dimentional index is
-            let cell_no = x_index + no_x_cells * y_index;
-            cells[cell_no].indices[nnps_id].push(i);
+                let cell_no = x_index + no_x_cells * y_index;
+                cells[cell_no].indices[nnps_id].push(i);
+            }
         }
-    }
-
-    NNPS {
-        x_min,
-        x_max,
-        y_min,
-        y_max,
-        no_x_cells,
-        no_y_cells,
-        max_size,
-        cells,
-    }
 }
 
 pub fn get_neighbours(xi: f32, yi: f32, nnps_idx: usize, nnps: &NNPS) -> Vec<usize> {
