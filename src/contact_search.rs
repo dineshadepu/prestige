@@ -68,13 +68,7 @@ pub struct WorldBounds {
 }
 
 impl WorldBounds {
-    pub fn new(
-        x_min: f32,
-        x_max: f32,
-        y_min: f32,
-        y_max: f32,
-        max_size: f32,
-    ) -> WorldBounds {
+    pub fn new(x_min: f32, x_max: f32, y_min: f32, y_max: f32, max_size: f32) -> WorldBounds {
         WorldBounds {
             x_min,
             x_max,
@@ -196,7 +190,7 @@ pub fn stash<T: GetXYH>(world: Vec<&T>, nnps: &mut NNPS) {
 
     // clean the cells
     for i in 0..cells.len() {
-        for j in 0..world_entities{
+        for j in 0..world_entities {
             cells[i].indices[j].clear()
         }
     }
@@ -208,11 +202,16 @@ pub fn stash<T: GetXYH>(world: Vec<&T>, nnps: &mut NNPS) {
             let x_index = ((x[i] - x_min) / max_size) as usize;
             let y_index = ((y[i] - y_min) / max_size) as usize;
 
-            // one dimentional index is
-                let cell_no = x_index + no_x_cells * y_index;
+            // check if the particle is in nnps domain
+            if x_index >= 0. && y_index >= 0. {
+                // one dimentional index is
+                let cell_no = x_index as usize + no_x_cells * y_index as usize;
                 cells[cell_no].indices[nnps_id].push(i);
             }
+            let cell_no = x_index + no_x_cells * y_index;
+            cells[cell_no].indices[nnps_id].push(i);
         }
+    }
 }
 
 pub fn get_neighbours(xi: f32, yi: f32, nnps_idx: usize, nnps: &NNPS) -> Vec<usize> {
