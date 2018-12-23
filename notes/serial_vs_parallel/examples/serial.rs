@@ -3,7 +3,7 @@ extern crate simple_shapes;
 
 // crates imports
 use prestige::{
-    contact_search::{get_neighbours, stash, WorldBounds, NNPS},
+    contact_search::{get_neighbours_2d, stash_2d, WorldBounds, NNPS},
     physics::dem::{equations::body_force, DEM},
     RK2Integrator,
 };
@@ -27,7 +27,7 @@ pub fn contact_force(
     kn: f32,
 ) {
     for i in 0..d_x.len() {
-        let nbrs = get_neighbours(d_x[i], d_y[i], s_nnps_id, &nnps);
+        let nbrs = get_neighbours_2d(d_x[i], d_y[i], s_nnps_id, &nnps);
         for &j in nbrs.iter() {
             let dx = d_x[i] - s_x[j];
             let dy = d_y[i] - s_y[j];
@@ -70,43 +70,28 @@ fn main() {
     // define density of the particle
     let rho_b = 2000.;
     let m_single_par = rho_b * spacing.powf(2.);
-    let mut body = DEM {
-        x: xb.clone(),
-        y: yb.clone(),
-        x0: xb.clone(),
-        y0: yb.clone(),
-        u: vec![0.; xb.len()],
-        v: vec![-3.; xb.len()],
-        u0: vec![0.; xb.len()],
-        v0: vec![-3.; xb.len()],
-        r: vec![spacing / 2.; body_particle_no],
-        fx: vec![0.; body_particle_no],
-        fy: vec![0.; body_particle_no],
-        h: vec![spacing / 2.; body_particle_no],
-        nnps_idx: 0,
-        no_par: body_particle_no,
-        m: vec![m_single_par; body_particle_no],
-    };
+    let mut body = DEM::new_from_xyzh(
+        xb.clone(),
+        yb.clone(),
+        vec![1.2 * spacing; body_particle_no],
+        body_particle_no,
+    );
+    body.m = vec![m_single_par; body_particle_no];
+    body.r = vec![spacing / 4.; body_particle_no];
+    body.nnps_idx = 0;
 
-    let tank = DEM {
-        x: xt.clone(),
-        y: yt.clone(),
-        x0: xt.clone(),
-        y0: yt.clone(),
-        u: vec![0.; xt.len()],
-        v: vec![0.; xt.len()],
-        u0: vec![0.; xt.len()],
-        v0: vec![0.; xt.len()],
-        r: vec![spacing / 2.; tank_particle_no],
-        fx: vec![0.; tank_particle_no],
-        fy: vec![0.; tank_particle_no],
-        h: vec![spacing / 2.; tank_particle_no],
-        nnps_idx: 1,
-        no_par: xt.len(),
-        // Use mass same as body
-        m: vec![m_single_par; tank_particle_no],
-    };
+    let mut tank = DEM::new_from_xyzh(
+        xt.clone(),
+        yt.clone(),
+        vec![1.2 * spacing; tank_particle_no],
+        tank_particle_no,
+    );
+    tank.m = vec![m_single_par; tank_particle_no];
+    tank.r = vec![spacing / 4.; tank_particle_no];
+    tank.nnps_idx = 1;
+
     let kn = 1e7;
+    let dim = 2;
 
     println!(
         "Body particles: {}, tank particles: {}, Total particles: {}",
@@ -116,8 +101,8 @@ fn main() {
     );
 
     // setup nnps
-    let world_bounds = WorldBounds::new(-1.1, 3.1, -1.1, 4.1, spacing);
-    let mut nnps = NNPS::new(vec![&body, &tank], &world_bounds);
+    let world_bounds = WorldBounds::new(-1.1, 3.1, -1.1, 4.1, 0.0, 0.0, spacing);
+    let mut nnps = NNPS::new(2, &world_bounds, dim);
 
     // solver data
     let dt = 1e-4;
@@ -126,7 +111,7 @@ fn main() {
 
     while t < tf {
         // stash the particles into the world's cells
-        stash(vec![&body, &tank], &mut nnps);
+        stash_2d(vec![&body, &tank], &mut nnps);
 
         body.initialize();
 
