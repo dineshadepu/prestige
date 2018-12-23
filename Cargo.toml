@@ -11,3 +11,4 @@ simple_shapes = {path = "../simple_shapes"}
 indicatif = "0.10.1"
 vtkio = "0.1.6"
 rand = "0.6"
+assert_approx_eq = "*"
