@@ -7,7 +7,7 @@
 ///
 /// Basic usage:
 ///
-/// ```
+/// ```norun
 /// # use prestige::contact_search::Cell;
 /// // Define the number of entites world comprises of
 /// let no_entities = 3;
@@ -47,16 +47,21 @@ impl Cell {
 ///
 /// Basic usage:
 /// A function `stash` is used to create an NNPS Object
+#[derive(Debug)]
 pub struct NNPS {
     pub x_min: f32,
     pub x_max: f32,
     pub y_min: f32,
     pub y_max: f32,
+    pub z_min: f32,
+    pub z_max: f32,
     pub no_x_cells: usize,
     pub no_y_cells: usize,
+    pub no_z_cells: usize,
     pub max_size: f32,
     pub cells: Vec<Cell>,
     pub world_entities: usize,
+    pub dim: usize,
 }
 
 pub struct WorldBounds {
@@ -64,49 +69,85 @@ pub struct WorldBounds {
     pub x_max: f32,
     pub y_min: f32,
     pub y_max: f32,
+    pub z_min: f32,
+    pub z_max: f32,
     pub max_size: f32,
 }
 
 impl WorldBounds {
-    pub fn new(x_min: f32, x_max: f32, y_min: f32, y_max: f32, max_size: f32) -> WorldBounds {
+    pub fn new(
+        x_min: f32,
+        x_max: f32,
+        y_min: f32,
+        y_max: f32,
+        z_min: f32,
+        z_max: f32,
+        max_size: f32,
+    ) -> WorldBounds {
         WorldBounds {
             x_min,
             x_max,
             y_min,
             y_max,
+            z_min,
+            z_max,
             max_size,
         }
     }
 }
 
 impl NNPS {
-    pub fn new<T: GetXYH>(world: Vec<&T>, bounds: &WorldBounds) -> NNPS {
+    pub fn new(world_entities_len: usize, bounds: &WorldBounds, dim: usize) -> NNPS {
         {
             // maximum size of a particle
             let x_min = bounds.x_min;
             let x_max = bounds.x_max;
             let y_min = bounds.y_min;
             let y_max = bounds.y_max;
+            let z_min = bounds.z_min;
+            let z_max = bounds.z_max;
             let max_size = bounds.max_size;
-            let world_entities = world.len();
 
-            // number of cells in x direction are
-            let no_x_cells = ((x_max - x_min) / max_size) as usize;
-            let no_y_cells = ((y_max - y_min) / max_size) as usize;
+            let no_x_cells = ((x_max + max_size - x_min) / max_size) as usize;
+            let (no_y_cells, no_z_cells) = match dim {
+                1 => (1, 1),
+                2 => {
+                    if y_max < y_min {
+                        panic!("Check world bounds. Y_MAX is less than Y_MIN")
+                    } else {
+                        (((y_max + max_size - y_min) / max_size) as usize, 1)
+                    }
+                }
+                3 => {
+                    if y_max < y_min {
+                        panic!("Check world bounds. Y_MAX is less than Y_MIN")
+                    } else {
+                        (
+                            ((y_max + max_size - y_min) / max_size) as usize,
+                            ((z_max + max_size - z_min) / max_size) as usize,
+                        )
+                    }
+                }
+                _ => panic!("We don't support the current dimension"),
+            };
 
             // total number of cells are
-            let cells = vec![Cell::new(world.len()); no_x_cells as usize * no_y_cells as usize];
+            let cells = vec![Cell::new(world_entities_len); no_x_cells * no_y_cells * no_z_cells];
 
             NNPS {
                 x_min,
                 x_max,
                 y_min,
                 y_max,
+                z_min,
+                z_max,
                 no_x_cells,
                 no_y_cells,
+                no_z_cells,
                 max_size,
                 cells,
-                world_entities,
+                world_entities: world_entities_len,
+                dim,
             }
         }
     }
@@ -121,51 +162,66 @@ all we need is position and the size of the particle.
 A simple macro is created to implement this trait. So any entity or `struct`
 which has fields `x, y, h` can implement this trait by simply executing
 
-```
+```norun
 
-impl_GetXYH!(DEM)
+impl_GetXYZH!(DEM)
 
 ```
 
 One can check `dem` module for this macro usage.
 
  **/
-pub trait GetXYH {
-    /// Get the `x` field on the struct
-    fn get_x(&self) -> &[f32];
-    /// Get the `y` field on the struct
-    fn get_y(&self) -> &[f32];
-    /// Get the `h` field on the struct
-    fn get_h(&self) -> &[f32];
+pub trait GetXYZH {
     /// Get the `nnps_id` field on the struct.
     fn get_nnps_id(&self) -> usize;
     /// Get the `(x, y, h)` fields on the struct.
-    fn get_xyh(&self) -> (&[f32], &[f32], &[f32]);
+    fn get_xyzh(&self) -> (&[f32], &[f32], &[f32], &[f32]);
 }
 
 #[macro_export]
-macro_rules! impl_GetXYH{
+macro_rules! impl_GetXYZH{
     ($($t:ty)*) => ($(
-        impl GetXYH for $t {
-            fn get_x(&self) ->  &[f32]{
-                &self.x
-            }
-            fn get_y(&self) ->  &[f32]{
-                &self.x
-            }
-            fn get_h(&self) ->  &[f32]{
-                &self.x
-            }
+        impl GetXYZH for $t {
             fn get_nnps_id(&self) ->  usize{
                 self.nnps_idx
             }
-            fn get_xyh(&self) -> (&[f32], &[f32], &[f32]) {
-                (&self.x, &self.y, &self.h)
+            fn get_xyzh(&self) -> (&[f32], &[f32], &[f32], &[f32]) {
+                (&self.x, &self.y, &self.z, &self.h)
             }
         }
     )*)
 }
 
+pub fn stash_1d<T: GetXYZH>(world: Vec<&T>, nnps: &mut NNPS) {
+    let x_max = nnps.x_max;
+    let x_min = nnps.x_min;
+    let max_size = nnps.max_size;
+    let world_entities = nnps.world_entities;
+
+    let cells = &mut nnps.cells;
+
+    // clean the cells
+    for i in 0..cells.len() {
+        for j in 0..world_entities {
+            cells[i].indices[j].clear()
+        }
+    }
+    // Stash the particles in the requisite cells
+    for entity in &world {
+        let nnps_id = entity.get_nnps_id();
+        let (x, _y, _z, _h) = entity.get_xyzh();
+        for i in 0..x.len() {
+            // check if the particle is in nnps domain
+            if x[i] >= x_min && x[i] <= x_max {
+                let x_index = (x[i] - x_min) / max_size;
+
+                // one dimentional index is
+                let cell_no = x_index as usize;
+                cells[cell_no].indices[nnps_id].push(i);
+            }
+        }
+    }
+}
 /**
 Saves all the particles in respective blocks `Cell` of world.
 
@@ -179,8 +235,10 @@ respective cell block. Which is further used by `get_neighbours` function.
  *TODO*: This should be generic. This has to be updated to support kernels.
  **/
 
-pub fn stash<T: GetXYH>(world: Vec<&T>, nnps: &mut NNPS) {
+pub fn stash_2d<T: GetXYZH>(world: Vec<&T>, nnps: &mut NNPS) {
+    let x_max = nnps.x_max;
     let x_min = nnps.x_min;
+    let y_max = nnps.y_max;
     let y_min = nnps.y_min;
     let no_x_cells = nnps.no_x_cells;
     let max_size = nnps.max_size;
@@ -197,49 +255,205 @@ pub fn stash<T: GetXYH>(world: Vec<&T>, nnps: &mut NNPS) {
     // Stash the particles in the requisite cells
     for entity in &world {
         let nnps_id = entity.get_nnps_id();
-        let (x, y, _h) = entity.get_xyh();
+        let (x, y, _z, _h) = entity.get_xyzh();
         for i in 0..x.len() {
-            let x_index = ((x[i] - x_min) / max_size) as usize;
-            let y_index = ((y[i] - y_min) / max_size) as usize;
-
             // check if the particle is in nnps domain
-            if x_index >= 0. && y_index >= 0. {
+            if (x[i] >= x_min && x[i] <= x_max) && (y[i] >= y_min && y[i] <= y_max) {
+                let x_index = (x[i] - x_min) / max_size;
+                let y_index = (y[i] - y_min) / max_size;
+
                 // one dimentional index is
                 let cell_no = x_index as usize + no_x_cells * y_index as usize;
                 cells[cell_no].indices[nnps_id].push(i);
             }
-            let cell_no = x_index + no_x_cells * y_index;
-            cells[cell_no].indices[nnps_id].push(i);
         }
     }
 }
 
-pub fn get_neighbours(xi: f32, yi: f32, nnps_idx: usize, nnps: &NNPS) -> Vec<usize> {
+pub fn stash_3d<T: GetXYZH>(world: Vec<&T>, nnps: &mut NNPS) {
+    let x_min = nnps.x_min;
+    let y_min = nnps.y_min;
+    let z_min = nnps.z_min;
+    let x_max = nnps.x_max;
+    let y_max = nnps.y_max;
+    let z_max = nnps.z_max;
+    let no_x_cells = nnps.no_x_cells;
+    let no_y_cells = nnps.no_y_cells;
+    let max_size = nnps.max_size;
+    let world_entities = nnps.world_entities;
+
+    let cells = &mut nnps.cells;
+
+    // clean the cells
+    for i in 0..cells.len() {
+        for j in 0..world_entities {
+            cells[i].indices[j].clear()
+        }
+    }
+    // Stash the particles in the requisite cells
+    for entity in &world {
+        let nnps_id = entity.get_nnps_id();
+        let (x, y, z, _h) = entity.get_xyzh();
+        for i in 0..x.len() {
+            // check if the particle is in nnps domain
+            if (x[i] >= x_min && x[i] <= x_max)
+                && (y[i] >= y_min && y[i] <= y_max)
+                && (z[i] >= z_min && z[i] <= z_max)
+            {
+                let x_index = (x[i] - x_min) / max_size;
+                let y_index = (y[i] - y_min) / max_size;
+                let z_index = (z[i] - z_min) / max_size;
+
+                let cell_no = x_index as usize
+                    + no_x_cells * y_index as usize
+                    + no_x_cells * no_y_cells * z_index as usize;
+
+                cells[cell_no].indices[nnps_id].push(i);
+            }
+        }
+    }
+}
+
+pub fn get_neighbours_1d(xi: f32, nnps_idx: usize, nnps: &NNPS) -> Vec<usize> {
     // get the cell index of the particle in the simulation world
     let x_index = ((xi - nnps.x_min) / nnps.max_size) as usize;
-    let y_index = ((yi - nnps.y_min) / nnps.max_size) as usize;
 
     // one dimentional index is
-    let cell_no = x_index + nnps.no_x_cells * y_index;
+    let cell_no = x_index;
 
     let mut nbrs = vec![];
 
+    if xi >= nnps.x_min && xi <= nnps.x_max {
+        // loop over neighbouring cells and copy the neighbours to a vector
+
+        let cells = &nnps.cells;
+        for neighbour in &[
+            Some(cell_no),
+            cell_no.checked_sub(1),
+            cell_no.checked_add(1),
+        ] {
+            if let Some(cell) = neighbour.and_then(|index| cells.get(index)) {
+                for &idx in &cell.indices[nnps_idx] {
+                    nbrs.push(idx)
+                }
+            }
+        }
+    }
+    nbrs
+}
+
+pub fn get_neighbours_2d(xi: f32, yi: f32, nnps_idx: usize, nnps: &NNPS) -> Vec<usize> {
+    let mut nbrs = vec![];
+
+    if (xi >= nnps.x_min && xi <= nnps.x_max) && (yi >= nnps.y_min && yi <= nnps.y_max) {
+        // get the cell index of the particle in the simulation world
+        let x_index = ((xi - nnps.x_min) / nnps.max_size) as usize;
+        let y_index = ((yi - nnps.y_min) / nnps.max_size) as usize;
+
+        // one dimentional index is
+        let cell_no = x_index + nnps.no_x_cells * y_index;
+
+        // loop over neighbouring cells and copy the neighbours to a vector
+
+        let cells = &nnps.cells;
+        for neighbour in &[
+            Some(cell_no),
+            cell_no.checked_sub(1),
+            cell_no.checked_add(1),
+            cell_no.checked_sub(nnps.no_x_cells),
+            cell_no.checked_sub(nnps.no_x_cells - 1),
+            cell_no.checked_sub(nnps.no_x_cells + 1),
+            cell_no.checked_add(nnps.no_x_cells),
+            cell_no.checked_add(nnps.no_x_cells - 1),
+            cell_no.checked_add(nnps.no_x_cells + 1),
+        ] {
+            if let Some(cell) = neighbour.and_then(|index| cells.get(index)) {
+                for &idx in &cell.indices[nnps_idx] {
+                    nbrs.push(idx)
+                }
+            }
+        }
+    }
+    nbrs
+}
+
+pub fn get_neighbours_3d(xi: f32, yi: f32, zi: f32, nnps_idx: usize, nnps: &NNPS) -> Vec<usize> {
+    let mut nbrs = vec![];
+
     // loop over neighbouring cells and copy the neighbours to a vector
-    let cells = &nnps.cells;
-    for neighbour in &[
-        Some(cell_no),
-        cell_no.checked_sub(1),
-        cell_no.checked_add(1),
-        cell_no.checked_sub(nnps.no_x_cells),
-        cell_no.checked_sub(nnps.no_x_cells - 1),
-        cell_no.checked_sub(nnps.no_x_cells + 1),
-        cell_no.checked_add(nnps.no_x_cells),
-        cell_no.checked_add(nnps.no_x_cells - 1),
-        cell_no.checked_add(nnps.no_x_cells + 1),
-    ] {
-        if let Some(cell) = neighbour.and_then(|index| cells.get(index)) {
-            for &idx in &cell.indices[nnps_idx] {
-                nbrs.push(idx)
+
+    if (xi >= nnps.x_min && xi <= nnps.x_max)
+        && (yi >= nnps.y_min && yi <= nnps.y_max)
+        && (zi >= nnps.z_min && zi <= nnps.z_max)
+    {
+        // get the cell index of the particle in the simulation world
+        let x_index = ((xi - nnps.x_min) / nnps.max_size) as usize;
+        let y_index = ((yi - nnps.y_min) / nnps.max_size) as usize;
+        let z_index = ((zi - nnps.z_min) / nnps.max_size) as usize;
+        let no_x_cells = nnps.no_x_cells;
+        let no_y_cells = nnps.no_y_cells;
+
+        // one dimentional index is
+        let cell_no = x_index as usize
+            + no_x_cells * y_index as usize
+            + no_x_cells * no_y_cells * z_index as usize;
+
+        let xy_cells = no_x_cells * no_y_cells;
+
+        let cells = &nnps.cells;
+        for neighbour in &[
+            Some(cell_no),
+            cell_no.checked_sub(1),
+            cell_no.checked_add(1),
+            cell_no.checked_sub(no_x_cells),
+            cell_no.checked_sub(no_x_cells - 1),
+            cell_no.checked_sub(no_x_cells + 1),
+            cell_no.checked_add(no_x_cells),
+            cell_no.checked_add(no_x_cells - 1),
+            cell_no.checked_add(no_x_cells + 1),
+        ] {
+            if let Some(cell) = neighbour.and_then(|index| cells.get(index)) {
+                for &idx in &cell.indices[nnps_idx] {
+                    nbrs.push(idx)
+                }
+            }
+        }
+
+        // for the stack of z = +1
+        for neighbour in &[
+            cell_no.checked_add(xy_cells),
+            cell_no.checked_add(xy_cells - 1),
+            cell_no.checked_add(xy_cells + 1),
+            cell_no.checked_add(xy_cells - no_y_cells),
+            cell_no.checked_add(xy_cells - no_y_cells - 1),
+            cell_no.checked_add(xy_cells - no_y_cells + 1),
+            cell_no.checked_add(xy_cells + no_y_cells),
+            cell_no.checked_add(xy_cells + no_y_cells - 1),
+            cell_no.checked_add(xy_cells + no_y_cells + 1),
+        ] {
+            if let Some(cell) = neighbour.and_then(|index| cells.get(index)) {
+                for &idx in &cell.indices[nnps_idx] {
+                    nbrs.push(idx)
+                }
+            }
+        }
+
+        // for the stack of z = -1
+        for neighbour in &[
+            cell_no.checked_sub(xy_cells),
+            cell_no.checked_sub(xy_cells - 1),
+            cell_no.checked_sub(xy_cells + 1),
+            cell_no.checked_sub(xy_cells - no_y_cells),
+            cell_no.checked_sub(xy_cells - no_y_cells - 1),
+            cell_no.checked_sub(xy_cells - no_y_cells + 1),
+            cell_no.checked_sub(xy_cells + no_y_cells),
+            cell_no.checked_sub(xy_cells + no_y_cells - 1),
+            cell_no.checked_sub(xy_cells + no_y_cells + 1),
+        ] {
+            if let Some(cell) = neighbour.and_then(|index| cells.get(index)) {
+                for &idx in &cell.indices[nnps_idx] {
+                    nbrs.push(idx)
+                }
             }
         }
     }
