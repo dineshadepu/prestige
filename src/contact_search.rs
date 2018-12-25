@@ -314,7 +314,7 @@ pub fn stash_3d<T: GetXYZH>(world: Vec<&T>, nnps: &mut NNPS) {
     }
 }
 
-pub fn get_neighbours_1d(xi: f32, nnps_idx: usize, nnps: &NNPS) -> Vec<usize> {
+pub fn get_neighbours_1d(xi: f32, _yi: f32, _zi: f32, nnps_idx: usize, nnps: &NNPS) -> Vec<usize> {
     // get the cell index of the particle in the simulation world
     let x_index = ((xi - nnps.x_min) / nnps.max_size) as usize;
 
@@ -342,7 +342,7 @@ pub fn get_neighbours_1d(xi: f32, nnps_idx: usize, nnps: &NNPS) -> Vec<usize> {
     nbrs
 }
 
-pub fn get_neighbours_2d(xi: f32, yi: f32, nnps_idx: usize, nnps: &NNPS) -> Vec<usize> {
+pub fn get_neighbours_2d(xi: f32, yi: f32, _zi: f32, nnps_idx: usize, nnps: &NNPS) -> Vec<usize> {
     let mut nbrs = vec![];
 
     if (xi >= nnps.x_min && xi <= nnps.x_max) && (yi >= nnps.y_min && yi <= nnps.y_max) {

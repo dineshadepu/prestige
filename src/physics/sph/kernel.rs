@@ -63,10 +63,12 @@ impl Kernel for CubicKernel {
             // xij is x_i - x_j
             dwij[0] = dw_drij * xij[0] * 1. / rij;
             dwij[1] = dw_drij * xij[1] * 1. / rij;
+            dwij[2] = dw_drij * xij[2] * 1. / rij;
         }
         else{
             dwij[0] = 0.;
             dwij[1] = 0.;
+            dwij[2] = 0.;
         }
     }
 }

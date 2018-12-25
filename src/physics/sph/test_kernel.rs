@@ -21,10 +21,10 @@ fn sin_deriv_approximation(pos: &Vec<f32>, h: &Vec<f32>, kernel: &Kernel) -> Vec
     let sin_actual = pos.iter().map(|val| val.sin()).collect::<Vec<f32>>();
     let mut sin_deriv = vec![0.; pos.len()];
     for i in 0..pos.len() {
-        let mut dwij = vec![0., 0.];
+        let mut dwij = vec![0., 0., 0.];
         for j in 0..pos.len() {
             // position between particles
-            let xij = vec![(pos[i] - pos[j]), 0.];
+            let xij = vec![(pos[i] - pos[j]), 0., 0.];
             let rij = (pos[i] - pos[j]).abs();
 
             // compute gradient

@@ -19,10 +19,7 @@ use simple_shapes::{grid_arange, tank};
 // std imports
 use std::fs;
 
-fn main() {
-    // dimension
-    let dim = 2;
-    let spacing = 0.03;
+fn create_entites(spacing : f32) -> (DEM, DEM){
     let (xt, yt) = tank(-1., 3., spacing, -1., 4., spacing, 1);
     let (xb, yb) = grid_arange(
         1.03,
@@ -36,7 +33,7 @@ fn main() {
     let tank_particle_no = xt.len();
 
     // define density of the particle
-    let rho_b = 2000.;
+                                 let rho_b = 2000.;
     let m_single_par = rho_b * spacing.powf(2.);
     let mut body = DEM::new_from_xyzh(
         xb.clone(),
@@ -58,14 +55,30 @@ fn main() {
     tank.m = vec![m_single_par; tank_particle_no];
     tank.r = vec![spacing / 2.; tank_particle_no];
     tank.nnps_idx = 1;
+
+    (body, tank)
+
+}
+
+fn print_no_part(pars: Vec<&Vec<f32>>){
+    let mut total_pars = 0;
+    for x in pars{
+        total_pars += x.len();
+    }
+    println!("Total particles {}", total_pars);
+}
+
+fn main() -> Result<(), Box<std::error::Error>>{
+    let spacing = 0.03;
+    // dimension
+    let dim = 2;
+
+    // particles
+    let (mut body, tank) = create_entites(0.03);
+
     let kn = 1e7;
 
-    println!(
-        "Body particles: {}, tank particles: {}, Total particles: {}",
-        body.x.len(),
-        tank.x.len(),
-        body.x.len() + tank.x.len()
-    );
+    print_no_part(vec![&body.x, &tank.x]);
 
     // setup nnps
     let world_bounds = WorldBounds::new(-1.1, 3.1, -1.1, 4.1, 0.0, 0.0, spacing);
@@ -80,7 +93,7 @@ fn main() {
 
     let version = env!("CARGO_MANIFEST_DIR");
     let dir_name = version.to_owned() + "/dam_break_dem_output";
-    let _tmp = fs::create_dir(&dir_name);
+    fs::create_dir(&dir_name)?;
 
     // create a progressbar
     let total_steps = (tf / dt) as u64;
@@ -112,7 +125,6 @@ fn main() {
             tank.nnps_idx,
             &nnps,
             kn,
-            dim,
         );
         contact_force_par(
             &body.x,
@@ -129,7 +141,6 @@ fn main() {
             body.nnps_idx,
             &nnps,
             kn,
-            dim,
         );
 
         body.stage1(dt);
@@ -151,7 +162,6 @@ fn main() {
             tank.nnps_idx,
             &nnps,
             kn,
-            dim,
         );
         contact_force_par(
             &body.x,
@@ -168,7 +178,6 @@ fn main() {
             body.nnps_idx,
             &nnps,
             kn,
-            dim,
         );
 
         body.stage2(dt);
@@ -189,4 +198,6 @@ fn main() {
         pb.inc(1);
     }
     pb.finish_with_message("Simulation succesfully completed");
+
+    Ok(())
 }

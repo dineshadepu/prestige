@@ -3,33 +3,24 @@ use rayon::prelude::*;
 
 // local library imports
 use super::DEM;
-use crate::contact_search::{get_neighbours_2d, get_neighbours_3d, NNPS};
+use crate::contact_search::{NNPS, get_neighbours_1d, get_neighbours_2d, get_neighbours_3d};
 use crate::RK2Integrator;
 
 pub fn contact_force_par(
-    d_x: &[f32],
-    d_y: &[f32],
-    d_z: &[f32],
-    d_r: &[f32],
-    d_fx: &mut [f32],
-    d_fy: &mut [f32],
-    d_fz: &mut [f32],
-    s_x: &[f32],
-    s_y: &[f32],
-    s_z: &[f32],
-    s_r: &[f32],
-    s_nnps_id: usize,
-    nnps: &NNPS,
-    kn: f32,
-    dim: usize,
+    d_x: &[f32], d_y: &[f32], d_z: &[f32], d_r: &[f32],
+    d_fx: &mut [f32], d_fy: &mut [f32], d_fz: &mut [f32],
+
+    s_x: &[f32], s_y: &[f32], s_z: &[f32], s_r: &[f32],
+    s_nnps_id: usize, nnps: &NNPS, kn: f32,
 ) {
     d_fx.par_iter_mut()
         .zip(d_fy.par_iter_mut().zip(d_fz.par_iter_mut().enumerate()))
         .for_each(|(d_fx_i, (d_fy_i, (i, d_fz_i)))| {
-            let nbrs = if dim < 3 {
-                get_neighbours_2d(d_x[i], d_y[i], s_nnps_id, &nnps)
-            } else {
-                get_neighbours_3d(d_x[i], d_y[i], d_z[i], s_nnps_id, &nnps)
+            let nbrs = match nnps.dim {
+                1 => get_neighbours_1d(d_x[i], d_y[i], d_z[i], s_nnps_id, &nnps),
+                2 => get_neighbours_2d(d_x[i], d_y[i], d_z[i], s_nnps_id, &nnps),
+                3 => get_neighbours_3d(d_x[i], d_y[i], d_z[i], s_nnps_id, &nnps),
+                _ => panic!("Dimension of wrong"),
             };
             for &j in nbrs.iter() {
                 let dx = d_x[i] - s_x[j];

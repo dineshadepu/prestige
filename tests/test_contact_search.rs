@@ -331,7 +331,7 @@ fn test_get_neighbours_2d() {
 
     for i in (0..x.len()).step_by(5) {
         // get the neighbours from nnps
-        let nbrs = get_neighbours_2d(x[i], y[i], smpl.nnps_idx, &nnps);
+        let nbrs = get_neighbours_2d(x[i], y[i], 0., smpl.nnps_idx, &nnps);
         let mut filtered_nbrs = vec![];
         // select the neighbours which are in limit or radius scale.
         for &j in nbrs.iter() {
@@ -394,7 +394,7 @@ fn test_get_neighbours_2d() {
 
     for i in (0..x.len()).step_by(5) {
         // get the neighbours from nnps
-        let nbrs = get_neighbours_2d(x[i], y[i], smpl.nnps_idx, &nnps);
+        let nbrs = get_neighbours_2d(x[i], y[i], 0., smpl.nnps_idx, &nnps);
         // println!("Length of pure neighbours {:?}", nbrs.len());
         let mut filtered_nbrs = vec![];
         // select the neighbours which are in limit or radius scale.
