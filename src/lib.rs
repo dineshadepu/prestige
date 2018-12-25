@@ -22,3 +22,21 @@ pub trait RK2Integrator {
 trait EulerIntegrator {
     fn stage1(&mut self);
 }
+
+pub fn rk2_initialize<T: RK2Integrator>(entites: &mut Vec<&mut T>){
+    for entity in entites{
+        entity.initialize();
+    }
+}
+
+pub fn rk2_stage_1<T: RK2Integrator>(entites: &mut Vec<&mut T>, dt: f32){
+    for entity in entites{
+        entity.stage1(dt);
+    }
+}
+
+pub fn rk2_stage_2<T: RK2Integrator>(entites: &mut Vec<&mut T>, dt: f32){
+    for entity in entites{
+        entity.stage2(dt);
+    }
+}
