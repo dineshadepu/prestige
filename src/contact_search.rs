@@ -1,3 +1,166 @@
+/// A trait to be implemented by every nnps model to get the neighbours
+pub trait NNPSGeneric {
+    fn get_neighbours(&self, x: f32, y: f32, z: f32, nnps_idx: usize) -> Vec<usize>;
+    fn get_neighbours_1d(&self, x: f32, nnps_idx: usize) -> Vec<usize>;
+    fn get_neighbours_2d(&self, x: f32, y: f32, s_nnps: usize) -> Vec<usize>;
+    fn get_neighbours_3d(&self, x: f32, y: f32, z: f32, nnps_idx: usize) -> Vec<usize>;
+}
+
+impl NNPSGeneric for NNPS {
+    fn get_neighbours(&self, x: f32, y: f32, z: f32, nnps_idx: usize) -> Vec<usize> {
+        match self.dim {
+            1 => self.get_neighbours_1d(x, nnps_idx),
+            2 => self.get_neighbours_2d(x, y, nnps_idx),
+            3 => self.get_neighbours_3d(x, y, z, nnps_idx),
+            _ => panic!("Check your dimension")
+        }
+    }
+    fn get_neighbours_1d(&self, x: f32, nnps_idx: usize) -> Vec<usize> {
+        // get the cell index of the particle in the simulation world
+        let x_index = ((x - self.x_min) / self.max_size) as usize;
+
+        // one dimentional index is
+        let cell_no = x_index;
+
+        let mut nbrs = vec![];
+
+        if x >= self.x_min && x <= self.x_max {
+            // loop over neighbouring cells and copy the neighbours to a vector
+
+            let cells = &self.cells;
+            for neighbour in &[
+                Some(cell_no),
+                cell_no.checked_sub(1),
+                cell_no.checked_add(1),
+            ] {
+                if let Some(cell) = neighbour.and_then(|index| cells.get(index)) {
+                    for &idx in &cell.indices[nnps_idx] {
+                        nbrs.push(idx)
+                    }
+                }
+            }
+        }
+        nbrs
+    }
+    fn get_neighbours_2d(&self, x: f32, y: f32, nnps_idx: usize) -> Vec<usize> {
+        let mut nbrs = vec![];
+
+        if (x >= self.x_min && x <= self.x_max) && (y >= self.y_min && y <= self.y_max) {
+            // get the cell index of the particle in the simulation world
+            let x_index = ((x - self.x_min) / self.max_size) as usize;
+            let y_index = ((y - self.y_min) / self.max_size) as usize;
+
+            // one dimentional index is
+            let cell_no = x_index + self.no_x_cells * y_index;
+
+            // loop over neighbouring cells and copy the neighbours to a vector
+
+            let cells = &self.cells;
+            for neighbour in &[
+                Some(cell_no),
+                cell_no.checked_sub(1),
+                cell_no.checked_add(1),
+                cell_no.checked_sub(self.no_x_cells),
+                cell_no.checked_sub(self.no_x_cells - 1),
+                cell_no.checked_sub(self.no_x_cells + 1),
+                cell_no.checked_add(self.no_x_cells),
+                cell_no.checked_add(self.no_x_cells - 1),
+                cell_no.checked_add(self.no_x_cells + 1),
+            ] {
+                if let Some(cell) = neighbour.and_then(|index| cells.get(index)) {
+                    for &idx in &cell.indices[nnps_idx] {
+                        nbrs.push(idx)
+                    }
+                }
+            }
+        }
+        nbrs
+    }
+    fn get_neighbours_3d(&self, x: f32, y: f32, z: f32, nnps_idx: usize) -> Vec<usize> {
+        let mut nbrs = vec![];
+
+        // loop over neighbouring cells and copy the neighbours to a vector
+
+        if (x >= self.x_min && x <= self.x_max)
+            && (y >= self.y_min && y <= self.y_max)
+            && (z >= self.z_min && z <= self.z_max)
+        {
+            // get the cell index of the particle in the simulation world
+            let x_index = ((x - self.x_min) / self.max_size) as usize;
+            let y_index = ((y - self.y_min) / self.max_size) as usize;
+            let z_index = ((z - self.z_min) / self.max_size) as usize;
+            let no_x_cells = self.no_x_cells;
+            let no_y_cells = self.no_y_cells;
+
+            // one dimentional index is
+            let cell_no = x_index as usize
+                + no_x_cells * y_index as usize
+                + no_x_cells * no_y_cells * z_index as usize;
+
+            let xy_cells = no_x_cells * no_y_cells;
+
+            let cells = &self.cells;
+            for neighbour in &[
+                Some(cell_no),
+                cell_no.checked_sub(1),
+                cell_no.checked_add(1),
+                cell_no.checked_sub(no_x_cells),
+                cell_no.checked_sub(no_x_cells - 1),
+                cell_no.checked_sub(no_x_cells + 1),
+                cell_no.checked_add(no_x_cells),
+                cell_no.checked_add(no_x_cells - 1),
+                cell_no.checked_add(no_x_cells + 1),
+            ] {
+                if let Some(cell) = neighbour.and_then(|index| cells.get(index)) {
+                    for &idx in &cell.indices[nnps_idx] {
+                        nbrs.push(idx)
+                    }
+                }
+            }
+
+            // for the stack of z = +1
+            for neighbour in &[
+                cell_no.checked_add(xy_cells),
+                cell_no.checked_add(xy_cells - 1),
+                cell_no.checked_add(xy_cells + 1),
+                cell_no.checked_add(xy_cells - no_y_cells),
+                cell_no.checked_add(xy_cells - no_y_cells - 1),
+                cell_no.checked_add(xy_cells - no_y_cells + 1),
+                cell_no.checked_add(xy_cells + no_y_cells),
+                cell_no.checked_add(xy_cells + no_y_cells - 1),
+                cell_no.checked_add(xy_cells + no_y_cells + 1),
+            ] {
+                if let Some(cell) = neighbour.and_then(|index| cells.get(index)) {
+                    for &idx in &cell.indices[nnps_idx] {
+                        nbrs.push(idx)
+                    }
+                }
+            }
+
+            // for the stack of z = -1
+            for neighbour in &[
+                cell_no.checked_sub(xy_cells),
+                cell_no.checked_sub(xy_cells - 1),
+                cell_no.checked_sub(xy_cells + 1),
+                cell_no.checked_sub(xy_cells - no_y_cells),
+                cell_no.checked_sub(xy_cells - no_y_cells - 1),
+                cell_no.checked_sub(xy_cells - no_y_cells + 1),
+                cell_no.checked_sub(xy_cells + no_y_cells),
+                cell_no.checked_sub(xy_cells + no_y_cells - 1),
+                cell_no.checked_sub(xy_cells + no_y_cells + 1),
+            ] {
+                if let Some(cell) = neighbour.and_then(|index| cells.get(index)) {
+                    for &idx in &cell.indices[nnps_idx] {
+                        nbrs.push(idx)
+                    }
+                }
+            }
+        }
+
+        nbrs
+    }
+}
+
 /// A block in the simulation world
 ///
 /// Saves the indices of the partices which are in
