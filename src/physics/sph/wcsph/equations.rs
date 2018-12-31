@@ -3,7 +3,7 @@ use rayon::prelude::*;
 
 // local library imports
 use super::WCSPH;
-use crate::contact_search::{get_neighbours_1d, get_neighbours_2d, get_neighbours_3d, NNPS};
+use crate::contact_search::{get_neighbours_1d, get_neighbours_2d, get_neighbours_3d, NNPS, NNPSGeneric};
 use crate::physics::sph::kernel::Kernel;
 use crate::RK2Integrator;
 
@@ -52,19 +52,14 @@ pub fn equation_of_state(d_p: &mut [f32], d_rho: &[f32], rho_rest: f32, gamma: f
     }
 }
 
-pub fn summation_density(
+pub fn summation_density<T: NNPSGeneric>(
     d_x: &[f32], d_y: &[f32], d_z: &[f32], d_h: &[f32],
     d_m: &[f32], d_rho: &mut [f32], s_x: &[f32], s_y: &[f32],
-    s_z: &[f32], s_nnps_id: usize, nnps: &NNPS,
+    s_z: &[f32], s_nnps_id: usize, nnps: &(dyn NNPSGeneric+ Sync),
     kernel: &(dyn Kernel + Sync))
 {
     d_rho.par_iter_mut().enumerate().for_each(|(i, d_rho_i)| {
-        let nbrs = match nnps.dim {
-            1 => get_neighbours_1d(d_x[i], d_y[i], d_z[i], s_nnps_id, &nnps),
-            2 => get_neighbours_2d(d_x[i], d_y[i], d_z[i], s_nnps_id, &nnps),
-            3 => get_neighbours_3d(d_x[i], d_y[i], d_z[i], s_nnps_id, &nnps),
-            _ => panic!("Dimension of wrong"),
-        };
+        let nbrs = nnps.get_neighbours(d_x[i], d_y[i], d_z[i], s_nnps_id);
         for &j in nbrs.iter() {
             let dx = d_x[i] - s_x[j];
             let dy = d_y[i] - s_y[j];
@@ -86,7 +81,7 @@ pub fn continuity_equation(
     d_v: &[f32], d_w: &[f32], d_h: &[f32], d_arho: &mut [f32],
     s_x: &[f32], s_y: &[f32], s_z: &[f32], s_u: &[f32],
     s_v: &[f32], s_w: &[f32], s_m: &[f32], s_nnps_id: usize,
-    nnps: &NNPS, kernel: &(dyn Kernel + Sync),)
+    nnps: &(dyn Kernel + Sync), kernel: &(dyn Kernel + Sync),)
 {
     d_arho.par_iter_mut().enumerate().for_each(|(i, d_arho_i)| {
         // let mut wij = 0.;
@@ -94,12 +89,7 @@ pub fn continuity_equation(
         let mut xij = vec![0.; 3];
         let mut uij = vec![0.; 3];
         let mut rij;
-        let nbrs = match nnps.dim {
-            1 => get_neighbours_1d(d_x[i], d_y[i], d_z[i], s_nnps_id, &nnps),
-            2 => get_neighbours_2d(d_x[i], d_y[i], d_z[i], s_nnps_id, &nnps),
-            3 => get_neighbours_3d(d_x[i], d_y[i], d_z[i], s_nnps_id, &nnps),
-            _ => panic!("Dimension of wrong"),
-        };
+        let nbrs = nnps.get_neighbours(d_x[i], d_y[i], d_z[i], s_nnps_id);
         for &j in nbrs.iter() {
             xij[0] = d_x[i] - s_x[j];
             xij[1] = d_y[i] - s_y[j];
@@ -129,7 +119,7 @@ pub fn momentum_equation(
     s_x: &[f32], s_y: &[f32], s_z: &[f32], s_u: &[f32],
     s_v: &[f32], s_w: &[f32], s_h: &[f32], s_m: &[f32],
     s_p: &[f32], s_rho: &[f32], s_c: &[f32], s_nnps_id: usize,
-    alpha: f32, nnps: &NNPS, kernel: &(dyn Kernel + Sync),)
+    alpha: f32, nnps: &(dyn NNPSGeneric + Sync), kernel: &(dyn Kernel + Sync),)
 {
     d_au.par_iter_mut()
         .zip(d_av.par_iter_mut()
@@ -140,12 +130,7 @@ pub fn momentum_equation(
             let mut uij = vec![0.; 3];
             let (mut rij, mut cij, mut hij, mut tmp, mut uij_dot_xij, mut rhoij, mut muij);
             let mut art_vis = 0.;
-            let nbrs = match nnps.dim {
-                1 => get_neighbours_1d(d_x[i], d_y[i], d_z[i], s_nnps_id, &nnps),
-                2 => get_neighbours_2d(d_x[i], d_y[i], d_z[i], s_nnps_id, &nnps),
-                3 => get_neighbours_3d(d_x[i], d_y[i], d_z[i], s_nnps_id, &nnps),
-                _ => panic!("Dimensions are wrong"),
-            };
+            let nbrs = nnps.get_neighbours(d_x[i], d_y[i], d_z[i], s_nnps_id);
             for &j in nbrs.iter() {
                 xij[0] = d_x[i] - s_x[j];
                 xij[1] = d_y[i] - s_y[j];
@@ -184,7 +169,7 @@ pub fn continuity_and_momentum_equation(
     s_x: &[f32], s_y: &[f32], s_z: &[f32], s_u: &[f32],
     s_v: &[f32], s_w: &[f32], s_h: &[f32], s_m: &[f32],
     s_p: &[f32], s_rho: &[f32], s_c: &[f32], s_nnps_id: usize,
-    alpha: f32, nnps: &NNPS, kernel: &(dyn Kernel + Sync),)
+    alpha: f32, nnps: &(dyn NNPSGeneric + Sync), kernel: &(dyn Kernel + Sync),)
 {
     d_au.par_iter_mut()
         .zip(d_arho.par_iter_mut().zip(d_av.par_iter_mut().zip(d_aw.par_iter_mut().enumerate())))
@@ -194,12 +179,7 @@ pub fn continuity_and_momentum_equation(
             let mut uij = vec![0.; 3];
             let (mut rij, mut cij, mut hij, mut tmp, mut uij_dot_xij, mut rhoij, mut muij);
             let mut art_vis = 0.;
-            let nbrs = match nnps.dim {
-                1 => get_neighbours_1d(d_x[i], d_y[i], d_z[i], s_nnps_id, &nnps),
-                2 => get_neighbours_2d(d_x[i], d_y[i], d_z[i], s_nnps_id, &nnps),
-                3 => get_neighbours_3d(d_x[i], d_y[i], d_z[i], s_nnps_id, &nnps),
-                _ => panic!("Dimensions are wrong"),
-            };
+            let nbrs = nnps.get_neighbours(d_x[i], d_y[i], d_z[i], s_nnps_id);
             for &j in nbrs.iter() {
                 xij[0] = d_x[i] - s_x[j];
                 xij[1] = d_y[i] - s_y[j];
