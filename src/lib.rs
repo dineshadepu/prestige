@@ -19,8 +19,8 @@ pub trait RK2Integrator {
     fn stage2(&mut self, dt: f32);
 }
 
-trait EulerIntegrator {
-    fn stage1(&mut self);
+pub trait EulerIntegrator {
+    fn stage1(&mut self, dt: f32);
 }
 
 pub fn rk2_initialize<T: RK2Integrator>(entites: &mut Vec<&mut T>){
