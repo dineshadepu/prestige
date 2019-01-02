@@ -1,3 +1,273 @@
+#+startup: hideblocks
+#+TITLE: Discrete element method
+
+* Modelling discrete particles using DEM
+  Discrete element method (DEM) is used to analyze the behaviour of discrete entities.
+** The Equation of motion
+   The linear motion of a single spherical particle can be described from
+   Newton's second law as
+
+   \begin{equation}
+   \label{eq:eqn_linear_motion}%
+   m_a \frac{d^a \mathbf{r}_a}{d t^2} = \mathbf{F}_{contact, a} + \mathbf{F}_{body}
+   \end{equation}
+
+   The rotational motion of the particle can be described using
+
+   \begin{equation}
+   \label{eq:1}%
+      I_a \frac{d \mathbf{\omega}_a}{d t} = \mathbf{T}_a
+   \end{equation}
+
+   The torque on particle a is given by
+
+   $$\mathbf{T}_a = \Sum_{\text{b}\belongs \text{contactlist}}\big( R_{a}
+   \mathbf{n}_{ab} \cross \mathbf{F}_{{ab, t}}\big)$$
+
+   There are two types of forces, linear and non linear. Create two modules for
+   implementing these two types of formulations.
+
+** Linear DEM
+   :PROPERTIES:
+   :header-args:
+   :END:
+
+*** Introduction
+
+   In this model the normal component of the force is given by
+
+   \begin{equation}
+   \label{eq:2}%
+   \mathbf{F}_{ab, n} = - k_n \delta_n \mathbf{n}_{ab} - \eta_n \mathbf{v}_{ab, n}
+   \end{equation}
+
+   Where $\mathbf{n}_{ab}$ is
+
+   \begin{equation*}
+   $\mathbf{n}_{ab}$ = \frac{\mathbf{r}_b - \mathbf{r}_a}{|\mathbf{r}_b - \mathbf{r}_a|}
+   \end{equation*}
+
+   $\v_{ab, n}$ is the relative normal velocity of particle *a* with respect to
+   particle *b*, $\eta_n$ is the normal damping coefficient. The overlap
+   \delta_n is given as
+
+   $$ \delta_n = (R_a + R_b) - |\mathbf{r}_b - \mathbf{r}_a| $$
+
+   The relative velocity is given by
+
+   \begin{equation}
+   $\mathbf{v}_{ab}$ = \mathbf{v}_a - \mathbf{v}_b + \big(R_a \omega_a + R_b \omega_b) \cross \mathbf{n}_{ab}
+   \end{equation}
+
+
+   Similarly tangential force is given as
+
+   \begin{equation}
+   \label{eq:3}%
+   \mathbf{F}_{ab, t} =
+   \begin{cases}
+     - k_t \mathbf{\delta}_t - \eta_t \mathbf{v}_{ab, t} \\
+     - \mu_f |\mathbf{F}_{ab, n}| \mathbf{t}_{ab}
+   \end{cases}
+   \end{equation}
+
+
+*** Create entity
+   Create a sub module to implement linear DEM.
+
+   #+BEGIN_SRC rust :tangle mod.rs
+pub mod dem_linear;
+   #+END_SRC
+
+   Create the directory
+
+   #+BEGIN_SRC sh :tangle no
+mkdir -p dem_linear
+   #+END_SRC
+
+   Let's create a =struct= which can be used while doing a =DEM= physics.
+   All the attributes are straight forward, expect =dem_idx= and
+   =total_dem_entities=. These attributes are used while modelling tangential
+   physics.
+
+   #+NAME: code_create_dem_entity
+   #+BEGIN_SRC rust :tangle dem_linear/mod.rs
+pub mod equations;
+use cgmath::Vector3;
+use std::collections::HashMap;
+
+/// Tangential Contact information
+#[derive(Debug, Clone)]
+pub struct TangCt {
+    normal_0: Vector3<f32>,
+    delta_tng: Vector3<f32>,
+}
+
+impl TangCt{
+    pub fn new(normal_0: &Vector3<f32>, delta_tng: Vector3<f32>) -> TangCt{
+        TangCt{
+            normal_0: normal_0.clone(),
+            delta_tng: delta_tng.clone(),
+        }
+    }
+}
+
+pub struct DEMLinear {
+    pub x: Vec<f32>,
+    pub y: Vec<f32>,
+    pub z: Vec<f32>,
+    pub x0: Vec<f32>,
+    pub y0: Vec<f32>,
+    pub z0: Vec<f32>,
+    pub u: Vec<f32>,
+    pub v: Vec<f32>,
+    pub w: Vec<f32>,
+    pub u0: Vec<f32>,
+    pub v0: Vec<f32>,
+    pub w0: Vec<f32>,
+    pub omega_x: Vec<f32>,
+    pub omega_y: Vec<f32>,
+    pub omega_z: Vec<f32>,
+    pub omega_x0: Vec<f32>,
+    pub omega_y0: Vec<f32>,
+    pub omega_z0: Vec<f32>,
+    pub h: Vec<f32>,
+    pub moi: Vec<f32>,
+    pub rad: Vec<f32>,
+    pub fx: Vec<f32>,
+    pub fy: Vec<f32>,
+    pub fz: Vec<f32>,
+    pub tx: Vec<f32>,
+    pub ty: Vec<f32>,
+    pub tz: Vec<f32>,
+    pub dem_idx: usize,
+    pub total_dem_entities: usize,
+    pub nnps_idx: usize,
+    pub tng_ctcs: Vec<Vec<HashMap<usize, TangCt>>>,
+}
+
+impl DEMLinear {
+    /// Creates a DEMLinear entity from x, y, z and radius of given particles
+    pub fn from_xyzr(
+        x: Vec<f32>,
+        y: Vec<f32>,
+        z: Vec<f32>,
+        rad: Vec<f32>,
+        dem_idx: usize,
+        total_dem_entities: usize,
+    ) -> DEMLinear {
+        DEMLinear {
+            x: x.clone(),
+            y: y.clone(),
+            z: z.clone(),
+            rad: rad.clone(),
+            x0: vec![0.; x.len()],
+            y0: vec![0.; x.len()],
+            z0: vec![0.; x.len()],
+            u: vec![0.; x.len()],
+            v: vec![0.; x.len()],
+            w: vec![0.; x.len()],
+            u0: vec![0.; x.len()],
+            v0: vec![0.; x.len()],
+            w0: vec![0.; x.len()],
+            omega_x: vec![0.; x.len()],
+            omega_y: vec![0.; x.len()],
+            omega_z: vec![0.; x.len()],
+            omega_x0: vec![0.; x.len()],
+            omega_y0: vec![0.; x.len()],
+            omega_z0: vec![0.; x.len()],
+            h: vec![0.; x.len()],
+            moi: vec![0.; x.len()],
+            fx: vec![0.; x.len()],
+            fy: vec![0.; x.len()],
+            fz: vec![0.; x.len()],
+            tx: vec![0.; x.len()],
+            ty: vec![0.; x.len()],
+            tz: vec![0.; x.len()],
+            dem_idx: dem_idx,
+            total_dem_entities: total_dem_entities,
+            nnps_idx: 0,
+            tng_ctcs: vec![vec![HashMap::new(); total_dem_entities]; x.len()],
+        }
+    }
+
+    pub fn from_xyr(
+        x: Vec<f32>,
+        y: Vec<f32>,
+        rad: Vec<f32>,
+        dem_idx: usize,
+        total_dem_entities: usize,
+    ) -> DEMLinear {
+        DEMLinear::from_xyzr(x, y, vec![0.; rad.len()], rad, dem_idx, total_dem_entities)
+    }
+}
+   #+END_SRC
+
+
+*** Write DEM equations
+   Write the equation for linear interparticle forces between the particles.
+   A bit about tangential force. In order to compute the tangential force we
+   have to keep track of the contact from the initiation.
+
+   At a given time (t) say we have a particles =a, b=. We want to find the
+   tangential force on =a= due to =b=. At time =t= I will have information about
+   the tangential overlap of =a= with =b=. If we are dealing with a 3d system,
+   then the orientation of the spring will change with time. The amount of
+   overlap available at time =t= may not be at right orientation, since the
+   particles may have moved to the next time step.
+
+
+   At time t we know that particles a and b are in overlap. By assuming that
+   they will continue to be in contact for the next time step, we will compute
+   the tangential overlap when they are at time t + dt.
+
+   In order to explain the computation of tangential overlap, I want to explain
+   other concept which might make our understanding better while dealing with
+   the tangential overlap.
+
+   Say we have a spring one end fixed. At time t the left end of the spring is
+   at 0.0 and the right end is at 1.0m. We know the velocity of the right end as
+   2.0 m/s and left end to be zero. Now at time t+dt we know from velocity at
+   time t that the position of the right end is
+
+   $$ x_r(t+dt) = x_r(t) + v_r(t) dt $$
+
+   Now coming back to the tangential overlap, we will find the tangential
+   overlap (\delta_t) of the contact at time (t + dt) from the velocity at time
+   t.
+
+   $$ \delta_t(t+dt) = \delta_t(t) + v_{ab, t} * dt $$
+
+   This is very smooth, unless we are working in 3d. When we start computing the
+   force using the spring elongation at time (t+dt) as expected, we will not
+   lead to any in-plane problems. But in 3d, we have to rotate the spring to the
+   current plane. This is because, by assuming the the contacting pairs to be
+   contained in a same plane as in time t, we computed the spring
+   elongation. But the particles moved to another plane, so we need to
+   compensate for that by rotating it to the current plane. One fortunate thing
+   is the elongation magnitude is correct. The rotation can be done along an
+   axis $\mathbf{n}_{ab} \cross \mathbf{n}_{ab, 0}$, where the 0 indicates the
+   previous time (which should be saved in the contact information). With the
+   rotated spring we have the tangential elongation at time t+dt. Using this
+   information we can compute the tangential force.
+
+   Let's discuss some corner cases.
+
+   What if the contact is for the first time?
+   In this case we need to ignore its tangential force contribution, since there
+   is no tangential overlap.
+
+   What if the existing contact loses contact?
+   In this case we need to remove it from the tracking history.
+
+   While computing the tangential overlap for the next time step we need to save
+   the current normal vector.
+
+
+
+
+   #+NAME: code_linear_dem_force
+   #+BEGIN_SRC rust :tangle dem_linear/equations.rs
 use super::{DEMLinear, TangCt};
 use crate::contact_search::{get_neighbours_1d, get_neighbours_2d, get_neighbours_3d, NNPS};
 use crate::EulerIntegrator;
@@ -172,16 +442,16 @@ pub fn linear_dem_interparticle_force(
                             tc_i_with_s_dem.insert(j, TangCt::new(&nij, vij_t*dt));
                         }
 
-                        *d_fx_i += fij_n[0] + fij_t[0];
-                        *d_fy_i += fij_n[1] + fij_t[1];
-                        *d_fz_i += fij_n[2] + fij_t[2];
+                        ,*d_fx_i += fij_n[0] + fij_t[0];
+                        ,*d_fy_i += fij_n[1] + fij_t[1];
+                        ,*d_fz_i += fij_n[2] + fij_t[2];
 
                         // compute torque
                         // torque is
                         torque = d_rad[i] * nij.cross(fij_t);
-                        *d_tx_i += torque[0];
-                        *d_ty_i += torque[1];
-                        *d_tz_i += torque[2];
+                        ,*d_tx_i += torque[0];
+                        ,*d_ty_i += torque[1];
+                        ,*d_tz_i += torque[2];
 
 
                     } else {
@@ -194,7 +464,13 @@ pub fn linear_dem_interparticle_force(
             }
         });
 }
+   #+END_SRC
 
+
+
+*** Implement stepper
+    #+NAME: name
+    #+BEGIN_SRC rust :tangle dem_linear/equations.rs
 impl EulerIntegrator for DEMLinear{
     fn euler_stage_1(&mut self, dt: f32){
         for i in 0..self.x.len(){
@@ -208,3 +484,4 @@ impl EulerIntegrator for DEMLinear{
         }
     }
 }
+    #+END_SRC
