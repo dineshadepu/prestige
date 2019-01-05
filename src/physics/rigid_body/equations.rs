@@ -1,6 +1,6 @@
 use super::RB3d;
 use crate::contact_search::{NNPS, get_neighbours_1d, get_neighbours_2d, get_neighbours_3d};
-use crate::{EulerIntegrator, RK2Integrator};
+use crate::EulerIntegrator;
 use cgmath::prelude::*;
 use cgmath::Matrix3;
 use cgmath::Vector3;
@@ -16,6 +16,7 @@ impl RB3d {
         }
 
         self.total_mass = tm;
+        assert!(self.total_mass > 0.);
     }
 
     /// compute center of mass
@@ -206,7 +207,7 @@ fn normalize_matrix3(mat: &mut Matrix3<f32>){
 }
 
 impl EulerIntegrator for RB3d {
-    fn stage1(&mut self, dt: f32) {
+    fn euler_stage_1(&mut self, dt: f32) {
         // aggregate all the forces to act at center of mass, and similar
         // way compute the torque
         let mut f = Vector3::zero();

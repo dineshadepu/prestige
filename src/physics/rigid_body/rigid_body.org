@@ -25,7 +25,6 @@ pub mod equations;
   #+BEGIN_SRC rust
 use cgmath::{Matrix3, Vector3};
 use cgmath::prelude::*;
-use std::collections::HashMap;
 
 // import to implement this trait for nnps functionality
 use crate::contact_search::GetXYZH;
@@ -138,6 +137,7 @@ impl WriteOutput for RB3d {
         let mut forces = vec![];
         let mut h = vec![];
         let mut m = vec![];
+        let mut rad = vec![];
         for i in 0..x.len() {
             pos.push(x[i]);
             pos.push(y[i]);
@@ -150,6 +150,7 @@ impl WriteOutput for RB3d {
             forces.push(fz[i]);
             h.push(self.h[i]);
             m.push(self.m[i]);
+            rad.push(self.rad[i]);
         }
 
         let mut attributes = Attributes::new();
@@ -179,6 +180,15 @@ impl WriteOutput for RB3d {
                 num_comp: 1,
                 lookup_table: None,
                 data: m.into(),
+            },
+        ));
+
+        attributes.point.push((
+            "rad".to_string(),
+            Attribute::Scalars {
+                num_comp: 1,
+                lookup_table: None,
+                data: rad.into(),
             },
         ));
 
@@ -215,7 +225,7 @@ impl_GetXYZH!(RB3d);
    #+BEGIN_SRC rust
 use super::RB3d;
 use crate::contact_search::{NNPS, get_neighbours_1d, get_neighbours_2d, get_neighbours_3d};
-use crate::{EulerIntegrator, RK2Integrator};
+use crate::EulerIntegrator;
 use cgmath::prelude::*;
 use cgmath::Matrix3;
 use cgmath::Vector3;
@@ -231,6 +241,7 @@ impl RB3d {
         }
 
         self.total_mass = tm;
+        assert!(self.total_mass > 0.);
     }
 
     /// compute center of mass
@@ -421,7 +432,7 @@ fn normalize_matrix3(mat: &mut Matrix3<f32>){
 }
 
 impl EulerIntegrator for RB3d {
-    fn stage1(&mut self, dt: f32) {
+    fn euler_stage_1(&mut self, dt: f32) {
         // aggregate all the forces to act at center of mass, and similar
         // way compute the torque
         let mut f = Vector3::zero();
@@ -597,7 +608,7 @@ fn main() {
             &nnps, kn, 5.
         );
 
-        body.stage1(dt);
+        body.euler_stage_1(dt);
 
         if step_no % pfreq == 0 {
             tank.write_vtk(format!("{}/tank_{}.vtk", &dir_name, step_no));
@@ -612,3 +623,5 @@ fn main() {
     pb.finish_with_message("Simulation succesfully completed");
 }
   #+END_SRC
+** Examples
+   You can find more documented examples at

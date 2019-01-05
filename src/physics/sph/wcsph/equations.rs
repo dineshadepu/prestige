@@ -3,7 +3,7 @@ use rayon::prelude::*;
 
 // local library imports
 use super::WCSPH;
-use crate::contact_search::{get_neighbours_1d, get_neighbours_2d, get_neighbours_3d, NNPS, NNPSGeneric};
+use crate::contact_search::{NNPSGeneric};
 use crate::physics::sph::kernel::Kernel;
 use crate::RK2Integrator;
 
@@ -81,7 +81,7 @@ pub fn continuity_equation(
     d_v: &[f32], d_w: &[f32], d_h: &[f32], d_arho: &mut [f32],
     s_x: &[f32], s_y: &[f32], s_z: &[f32], s_u: &[f32],
     s_v: &[f32], s_w: &[f32], s_m: &[f32], s_nnps_id: usize,
-    nnps: &(dyn Kernel + Sync), kernel: &(dyn Kernel + Sync),)
+    nnps: &(dyn NNPSGeneric + Sync), kernel: &(dyn Kernel + Sync),)
 {
     d_arho.par_iter_mut().enumerate().for_each(|(i, d_arho_i)| {
         // let mut wij = 0.;
@@ -213,7 +213,7 @@ pub fn continuity_and_momentum_equation(
 }
 
 impl RK2Integrator for WCSPH {
-    fn initialize(&mut self) {
+    fn rk2_initialize(&mut self) {
         for i in 0..self.x.len() {
             self.x0[i] = self.x[i];
             self.y0[i] = self.y[i];
@@ -225,7 +225,7 @@ impl RK2Integrator for WCSPH {
         }
     }
 
-    fn stage1(&mut self, dt: f32) {
+    fn rk2_stage_1(&mut self, dt: f32) {
         let dtb2 = dt / 2.;
         for i in 0..self.x.len() {
             self.rho[i] = self.rho0[i] + self.arho[i] * dtb2;
@@ -237,7 +237,7 @@ impl RK2Integrator for WCSPH {
             self.z[i] = self.z0[i] + self.w[i] * dtb2;
         }
     }
-    fn stage2(&mut self, dt: f32) {
+    fn rk2_stage_2(&mut self, dt: f32) {
         for i in 0..self.x.len() {
             self.rho[i] = self.rho0[i] + self.arho[i] * dt;
             self.u[i] = self.u0[i] + self.au[i] * dt;

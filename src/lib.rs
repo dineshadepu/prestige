@@ -5,6 +5,8 @@ pub mod contact_search;
 
 pub mod physics;
 
+// external imports
+use indicatif::{ProgressBar, ProgressStyle};
 // basic utilities
 
 // Output trait for every particle array
@@ -14,29 +16,39 @@ pub trait WriteOutput {
 
 // Integrator trait
 pub trait RK2Integrator {
-    fn initialize(&mut self);
-    fn stage1(&mut self, dt: f32);
-    fn stage2(&mut self, dt: f32);
+    fn rk2_initialize(&mut self);
+    fn rk2_stage_1(&mut self, dt: f32);
+    fn rk2_stage_2(&mut self, dt: f32);
 }
 
 pub trait EulerIntegrator {
-    fn stage1(&mut self, dt: f32);
+    fn euler_stage_1(&mut self, dt: f32);
 }
 
 pub fn rk2_initialize<T: RK2Integrator>(entites: &mut Vec<&mut T>){
     for entity in entites{
-        entity.initialize();
+        entity.rk2_initialize();
     }
 }
 
 pub fn rk2_stage_1<T: RK2Integrator>(entites: &mut Vec<&mut T>, dt: f32){
     for entity in entites{
-        entity.stage1(dt);
+        entity.rk2_stage_1(dt);
     }
 }
 
 pub fn rk2_stage_2<T: RK2Integrator>(entites: &mut Vec<&mut T>, dt: f32){
     for entity in entites{
-        entity.stage2(dt);
+        entity.rk2_stage_2(dt);
     }
+}
+pub fn setup_progress_bar(total_steps: u64) -> ProgressBar{
+    let pb = ProgressBar::new(total_steps);
+    pb.set_style(
+        ProgressStyle::default_bar()
+            .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] ({eta})")
+            .progress_chars("#>-"),
+    );
+    pb
+
 }

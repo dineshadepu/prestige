@@ -2,7 +2,6 @@ pub mod equations;
 
 use cgmath::{Matrix3, Vector3};
 use cgmath::prelude::*;
-use std::collections::HashMap;
 
 // import to implement this trait for nnps functionality
 use crate::contact_search::GetXYZH;
@@ -115,6 +114,7 @@ impl WriteOutput for RB3d {
         let mut forces = vec![];
         let mut h = vec![];
         let mut m = vec![];
+        let mut rad = vec![];
         for i in 0..x.len() {
             pos.push(x[i]);
             pos.push(y[i]);
@@ -127,6 +127,7 @@ impl WriteOutput for RB3d {
             forces.push(fz[i]);
             h.push(self.h[i]);
             m.push(self.m[i]);
+            rad.push(self.rad[i]);
         }
 
         let mut attributes = Attributes::new();
@@ -156,6 +157,15 @@ impl WriteOutput for RB3d {
                 num_comp: 1,
                 lookup_table: None,
                 data: m.into(),
+            },
+        ));
+
+        attributes.point.push((
+            "rad".to_string(),
+            Attribute::Scalars {
+                num_comp: 1,
+                lookup_table: None,
+                data: rad.into(),
             },
         ));
 

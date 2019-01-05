@@ -38,28 +38,28 @@ pub fn linear_dem_interparticle_force(
         .for_each(|(d_fx_i, (d_fy_i, (d_fz_i, (d_tx_i, (d_ty_i, (d_tz_i, (i, d_tng_ctcs_i)))))))| {
             let mut xij = Vector3::new(0., 0., 0.);
             let mut vij = Vector3::new(0., 0., 0.);
-            let mut nij = Vector3::new(0., 0., 0.);
-            let mut tij = Vector3::new(0., 0., 0.);
+            let mut nij;
+            let mut tij;
             let mut fij_n = Vector3::new(0., 0., 0.);
             let mut fij_t = Vector3::new(0., 0., 0.);
-            let mut torque = Vector3::new(0., 0., 0.);
+            let mut torque;
             let omega_i = Vector3::new(d_omega_x[i], d_omega_y[i], d_omega_z[i]);
-            let mut omega_j = Vector3::new(0., 0., 0.);
-            let mut vij_n = Vector3::new(0., 0., 0.);
+            let mut omega_j;
+            let mut vij_n;
             let mut vij_t = Vector3::new(0., 0., 0.);
-            let mut tmp =  Vector3::new(0., 0., 0.);
-            let mut h_v = Vector3::new(0., 0., 0.);
-            let mut h_v_norm = Vector3::new(0., 0., 0.);
+            let mut tmp;
+            let mut h_v;
+            let mut h_v_norm;
             let mut rot_mtrx = Matrix3::<f32>::zero();
             let tc_i_with_s_dem = &mut d_tng_ctcs_i[s_dem_id];
 
-            let mut rij: f32 = 0.;
-            let mut overlap_n = 0.;
-            let mut couloumb_limit:f32 = 0.;
-            let mut angle = 0.;
-            let mut q: f32 = 0.;
-            let mut s: f32 = 0.;
-            let mut c: f32 = 0.;
+            let mut rij;
+            let mut overlap_n;
+            let mut couloumb_limit;
+            let mut angle;
+            let mut q;
+            let mut s;
+            let mut c;
             // let mut vij_dot_xij = 0.;
             let nbrs = match nnps.dim {
                 1 => get_neighbours_1d(d_x[i], d_y[i], d_z[i], s_nnps_id, &nnps),

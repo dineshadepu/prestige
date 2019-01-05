@@ -99,7 +99,7 @@ fn main() {
             &nnps, kn, 5.
         );
 
-        body.stage1(dt);
+        body.euler_stage_1(dt);
 
         if step_no % pfreq == 0 {
             tank.write_vtk(format!("{}/tank_{}.vtk", &dir_name, step_no));
