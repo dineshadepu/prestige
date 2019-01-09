@@ -1,3 +1,4 @@
+// [[file:~/phd/code_phd/prestige/src/physics/rigid_body/rigid_body.org::*mod.rs][mod.rs:1]]
 pub mod equations;
 
 use cgmath::{Matrix3, Vector3};
@@ -36,19 +37,22 @@ pub struct RB3d {
     pub r_dash: Vec<Vector3<f32>>,
     pub r_dash0: Vec<Vector3<f32>>,
     pub r_body: Vec<Vector3<f32>>,
-    pub cm: Vector3<f32>,
-    pub lin_vel: Vector3<f32>,
-    pub ang_vel: Vector3<f32>,
-    pub lin_mom: Vector3<f32>,
-    pub ang_mom: Vector3<f32>,
-    pub torque: Vector3<f32>,
-    pub net_force: Vector3<f32>,
-    pub orientation: Matrix3<f32>,
-    pub orientation_rate: Matrix3<f32>,
-    pub moi_body_inv: Matrix3<f32>,
-    pub moi_global_inv: Matrix3<f32>,
-    pub total_mass: f32,
+    pub cm: Vec<Vector3<f32>>,
+    pub lin_vel: Vec<Vector3<f32>>,
+    pub ang_vel: Vec<Vector3<f32>>,
+    pub lin_mom: Vec<Vector3<f32>>,
+    pub ang_mom: Vec<Vector3<f32>>,
+    pub torque: Vec<Vector3<f32>>,
+    pub net_force: Vec<Vector3<f32>>,
+    pub orientation: Vec<Matrix3<f32>>,
+    pub orientation_rate: Vec<Matrix3<f32>>,
+    pub moi_body_inv: Vec<Matrix3<f32>>,
+    pub moi_global_inv: Vec<Matrix3<f32>>,
+    pub total_mass: Vec<f32>,
     pub nnps_idx: usize,
+    pub body_id: Vec<usize>,
+    pub no_bodies: usize,
+    pub body_limits: Vec<usize>,
 }
 
 impl RB3d {
@@ -76,24 +80,96 @@ impl RB3d {
             r_dash: vec![Vector3::zero(); x.len()],
             r_dash0: vec![Vector3::zero(); x.len()],
             r_body: vec![Vector3::zero(); x.len()],
-            cm: Vector3::new(0., 0., 0.),
-            lin_vel: Vector3::new(0., 0., 0.),
-            ang_vel: Vector3::new(0., 0., 0.),
-            lin_mom: Vector3::new(0., 0., 0.),
-            ang_mom: Vector3::new(0., 0., 0.),
-            torque: Vector3::new(0., 0., 0.),
-            net_force: Vector3::new(0., 0., 0.),
-            orientation: Matrix3::new(1., 0., 0., 0., 1., 0., 0., 0., 1.),
-            orientation_rate: Matrix3::<f32>::zero(),
-            moi_body_inv: Matrix3::<f32>::zero(),
-            moi_global_inv: Matrix3::<f32>::zero(),
-            total_mass: 0.,
+            cm: vec![Vector3::new(0., 0., 0.)],
+            lin_vel: vec![Vector3::new(0., 0., 0.)],
+            ang_vel: vec![Vector3::new(0., 0., 0.)],
+            lin_mom: vec![Vector3::new(0., 0., 0.)],
+            ang_mom: vec![Vector3::new(0., 0., 0.)],
+            torque: vec![Vector3::new(0., 0., 0.)],
+            net_force: vec![Vector3::new(0., 0., 0.)],
+            orientation: vec![Matrix3::new(1., 0., 0., 0., 1., 0., 0., 0., 1.)],
+            orientation_rate: vec![Matrix3::<f32>::zero()],
+            moi_body_inv: vec![Matrix3::<f32>::zero()],
+            moi_global_inv: vec![Matrix3::<f32>::zero()],
+            total_mass: vec![0.],
             nnps_idx: 0,
+            body_id: vec![0; x.len()],
+            no_bodies: 1,
+            body_limits: vec![0, x.len()],
         }
     }
 
+    /// Create a rigid body from x, y and radius of Rigid body points.
+    /// This will assume the body to have a single body, and sets the body id to 1
+    /// If you have Many bodies use from_xyzr_b_id method.
     pub fn from_xyr(x: Vec<f32>, y: Vec<f32>, rad: Vec<f32>) -> RB3d {
         RB3d::from_xyzr(x, y, vec![0.; rad.len()], rad)
+    }
+
+    fn set_up_bodies(&mut self, body_id: Vec<usize>) {
+        // get the total no of bodies form the maximum index of the b_id
+        let total_bodies = body_id.iter().max();
+        // set the total no of bodies
+        self.no_bodies = *total_bodies.unwrap() + 1;
+        println!("Failing here", );
+        let no_bodies = self.no_bodies;
+
+        // Create the center of mass properties for all other
+        // bodies
+        self.cm = vec![Vector3::new(0., 0., 0.); no_bodies];
+        self.lin_vel = vec![Vector3::new(0., 0., 0.); no_bodies];
+        self.ang_vel = vec![Vector3::new(0., 0., 0.); no_bodies];
+        self.lin_mom = vec![Vector3::new(0., 0., 0.); no_bodies];
+        self.ang_mom = vec![Vector3::new(0., 0., 0.); no_bodies];
+        self.torque = vec![Vector3::new(0., 0., 0.); no_bodies];
+        self.net_force = vec![Vector3::new(0., 0., 0.); no_bodies];
+        self.orientation = vec![Matrix3::new(1., 0., 0., 0., 1., 0., 0., 0., 1.); no_bodies];
+        self.orientation_rate = vec![Matrix3::<f32>::zero(); no_bodies];
+        self.moi_body_inv = vec![Matrix3::<f32>::zero(); no_bodies];
+        self.moi_global_inv = vec![Matrix3::<f32>::zero(); no_bodies];
+
+        // set the body id
+        self.body_id = body_id.clone();
+
+        // set the bodies limit (indices limits), for example say we have a 3
+        // bodies with 4, 3, 4, particles , and the indices of body id look like
+        // [0, 0, 0, 0, 1, 1, 1, 2, 2, 2, 2]
+        // so the limits would be
+        // [0, 3, 4, 7, 7, 11]
+
+        // if we have many bodies then we can assign the limits using a for loop
+        let mut body_limits = vec![];
+
+        if no_bodies > 1{
+            for i in 0..no_bodies-1{
+                let min_idx = {
+                    let mut j = 0;
+                    while i != body_id[j] {
+                        j += 1;
+                    }
+                    j
+                };
+                let max_idx = {
+                    let mut j = min_idx;
+                    while i >= body_id[j]{
+                        j += 1;
+                    }
+                    j
+                };
+                body_limits.push(min_idx);
+                body_limits.push(max_idx);
+            }
+            body_limits.push(body_limits[2*(no_bodies-1) - 1]);
+            body_limits.push(body_id.len());
+        }
+
+        self.body_limits = body_limits;
+    }
+
+    pub fn from_xyr_b_id(x: Vec<f32>, y: Vec<f32>, rad: Vec<f32>, body_id:Vec<usize>) -> RB3d {
+        let mut body = RB3d::from_xyzr(x, y, vec![0.; rad.len()], rad);
+        body.set_up_bodies(body_id);
+        body
     }
 }
 
@@ -191,3 +267,4 @@ impl WriteOutput for RB3d {
 
 // implement nnps macro
 impl_GetXYZH!(RB3d);
+// mod.rs:1 ends here

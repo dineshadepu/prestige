@@ -1,3 +1,4 @@
+// [[file:~/phd/code_phd/prestige/src/physics/rigid_body/rigid_body.org::*Example%201][Example 1:1]]
 extern crate prestige;
 extern crate simple_shapes;
 extern crate indicatif;
@@ -113,3 +114,4 @@ fn main() {
     }
     pb.finish_with_message("Simulation succesfully completed");
 }
+// Example 1:1 ends here
