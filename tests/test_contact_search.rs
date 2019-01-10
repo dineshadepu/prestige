@@ -5,7 +5,7 @@ use prestige::{
     impl_GetXYZH,
 };
 use rand::Rng;
-use simple_shapes::{grid_arange, grid_arange_3d};
+use prestige::geometry::{grid_arange, grid_arange_3d};
 
 /// A simple struct used for nnps tests
 /// It has x, y, z and h as it's attributes and will derive a

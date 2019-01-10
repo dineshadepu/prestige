@@ -1,7 +1,7 @@
 // [[file:~/phd/code_phd/prestige/src/physics/rigid_body/rigid_body.org::rigid_bod_equations][rigid_bod_equations]]
 use super::RB3d;
 use crate::contact_search::{get_neighbours_1d, get_neighbours_2d, get_neighbours_3d, NNPS};
-use crate::EulerIntegrator;
+use crate::{EulerIntegrator, RK2Integrator};
 use cgmath::prelude::*;
 use cgmath::Matrix3;
 use cgmath::Vector3;
@@ -301,6 +301,172 @@ impl EulerIntegrator for RB3d {
 
             // Update the angular velocity from the angular momentum at time
             // t + dt and the moi tensor at time t + dt
+            self.ang_vel[i] = self.moi_global_inv[i] * self.ang_mom[i];
+
+            // Update the position vectors from center of mass to the partices
+            // r_dash
+            let r_dash = &mut self.r_dash;
+            let r_body = &self.r_body;
+            for j in body_limits[2*i]..body_limits[2*i+1]{
+                r_dash[j] = self.orientation[i] * r_body[j];
+                self.x[j] = self.cm[i][0] + r_dash[j][0];
+                self.y[j] = self.cm[i][1] + r_dash[j][1];
+                self.z[j] = self.cm[i][2] + r_dash[j][2];
+                // velocity due to angular effect
+                let tmp = self.ang_vel[i].cross(r_dash[j]);
+                self.u[j] = self.lin_vel[i][0] + tmp[0];
+                self.v[j] = self.lin_vel[i][1] + tmp[1];
+                self.w[j] = self.lin_vel[i][2] + tmp[2];
+            }
+
+        }
+    }
+}
+
+impl RK2Integrator for RB3d {
+    fn rk2_initialize(&mut self) {
+        for i in 0..self.no_bodies{
+            self.cm_0[i] = self.cm[i];
+            self.lin_vel_0[i] = self.lin_vel[i];
+            self.orientation_0[i] = self.orientation[i];
+            // self.ang_vel_0[i] = self.ang_vel[i];
+        }
+    }
+
+    fn rk2_stage_1(&mut self, dt: f32) {
+        // move to half time step
+        let dtb2 = dt / 2.;
+        // for each individual body
+        let body_limits = &self.body_limits;
+        for i in 0..self.no_bodies{
+            // aggregate all the forces to act at center of mass, and similar
+            // way compute the torque
+            let mut f = Vector3::zero();
+            let mut fj;
+            let mut trq = Vector3::zero();
+
+            // loop over the indices which belong to the particle i
+            for j in body_limits[2*i]..body_limits[2*i+1]{
+                fj = Vector3::new(self.fx[j], self.fy[j], self.fz[j]);
+                f += fj;
+                trq += self.r_dash[j].cross(fj);
+            }
+            // set the total force and torque
+            self.net_force[i] = f;
+            self.torque[i] = trq;
+
+            // evolve the center of mass and center of mass velocity to next time step (t + dt/2.)
+            self.lin_vel[i] = self.lin_vel_0[i] + f * dtb2;
+            self.cm[i] = self.cm_0[i] + self.lin_vel[i] * dtb2;
+
+            // Evolve orientation to next time step (t + dt/2.)
+            let current_orientation = &self.orientation_0[i];
+            self.orientation[i] = current_orientation +
+                dtb2
+                * Matrix3::new(
+                    // first column
+                    0.,
+                    self.ang_vel[i][2],
+                    -self.ang_vel[i][1],
+                    // second column
+                    -self.ang_vel[i][2],
+                    0.,
+                    self.ang_vel[i][0],
+                    // third column
+                    self.ang_vel[i][1],
+                    -self.ang_vel[i][0],
+                    0.,
+                ) * current_orientation;
+            // normalize the orientation matrix
+            normalize_matrix3(&mut self.orientation[i]);
+
+            // update angular momentum to (t+dt/2)
+            self.ang_mom[i] = self.ang_mom_0[i] + dtb2 * trq;
+
+            // compute the moment of inertia at current time (t+dt/2) by using
+            // angular momentum and rotation matrix at time t+dt/2.
+            self.moi_global_inv[i] = self.orientation[i] * self.moi_body_inv[i] *
+                self.orientation[i].transpose();
+
+            // Update the angular velocity from the angular momentum at time
+            // t + dt/2. and the moi tensor at time t + dt/2.
+            self.ang_vel[i] = self.moi_global_inv[i] * self.ang_mom[i];
+
+            // Update the position vectors from center of mass to the partices
+            // r_dash
+            let r_dash = &mut self.r_dash;
+            let r_body = &self.r_body;
+            for j in body_limits[2*i]..body_limits[2*i+1]{
+                r_dash[j] = self.orientation[i] * r_body[j];
+                self.x[j] = self.cm[i][0] + r_dash[j][0];
+                self.y[j] = self.cm[i][1] + r_dash[j][1];
+                self.z[j] = self.cm[i][2] + r_dash[j][2];
+                // velocity due to angular effect
+                let tmp = self.ang_vel[i].cross(r_dash[j]);
+                self.u[j] = self.lin_vel[i][0] + tmp[0];
+                self.v[j] = self.lin_vel[i][1] + tmp[1];
+                self.w[j] = self.lin_vel[i][2] + tmp[2];
+            }
+
+        }
+    }
+
+    fn rk2_stage_2(&mut self, dt: f32) {
+        // for each individual body
+        let body_limits = &self.body_limits;
+        for i in 0..self.no_bodies{
+            // aggregate all the forces to act at center of mass, and similar
+            // way compute the torque
+            let mut f = Vector3::zero();
+            let mut fj;
+            let mut trq = Vector3::zero();
+
+            // loop over the indices which belong to the particle i
+            for j in body_limits[2*i]..body_limits[2*i+1]{
+                fj = Vector3::new(self.fx[j], self.fy[j], self.fz[j]);
+                f += fj;
+                trq += self.r_dash[j].cross(fj);
+            }
+            // set the total force and torque
+            self.net_force[i] = f;
+            self.torque[i] = trq;
+
+            // evolve the center of mass and center of mass velocity to next time step (t + dt)
+            //  using accelerations at t+dt/2
+            self.lin_vel[i] = self.lin_vel_0[i] + f * dt;
+            self.cm[i] = self.cm_0[i] + self.lin_vel[i] * dt;
+
+            // Evolve orientation to next time step (t + dt) using accelerations at t+dt/2
+            let current_orientation = &self.orientation_0[i];
+            self.orientation[i] = current_orientation +
+                dt
+                * Matrix3::new(
+                    // first column
+                    0.,
+                    self.ang_vel[i][2],
+                    -self.ang_vel[i][1],
+                    // second column
+                    -self.ang_vel[i][2],
+                    0.,
+                    self.ang_vel[i][0],
+                    // third column
+                    self.ang_vel[i][1],
+                    -self.ang_vel[i][0],
+                    0.,
+                ) * current_orientation;
+            // normalize the orientation matrix
+            normalize_matrix3(&mut self.orientation[i]);
+
+            // update angular momentum to (t+dt) using accelerations at t+dt/2
+            self.ang_mom[i] = self.ang_mom_0[i] + dt * trq;
+
+            // compute the moment of inertia at current time (t+dt) by using
+            // angular momentum and rotation matrix at time t+dt.
+            self.moi_global_inv[i] = self.orientation[i] * self.moi_body_inv[i] *
+                self.orientation[i].transpose();
+
+            // Update the angular velocity from the angular momentum at time
+            // t + dt and the moi tensor at time t + dt.
             self.ang_vel[i] = self.moi_global_inv[i] * self.ang_mom[i];
 
             // Update the position vectors from center of mass to the partices

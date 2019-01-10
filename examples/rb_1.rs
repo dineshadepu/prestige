@@ -1,6 +1,5 @@
 // [[file:~/phd/code_phd/prestige/src/physics/rigid_body/rigid_body.org::*Example%201][Example 1:1]]
 extern crate prestige;
-extern crate simple_shapes;
 extern crate indicatif;
 
 // crates imports
@@ -12,7 +11,7 @@ use prestige::{
 
 // external crate imports
 use indicatif::{ProgressBar, ProgressStyle};
-use simple_shapes::{grid_arange_3d, tank_3d};
+use prestige::geometry::{grid_arange_3d, tank_3d};
 
 // std imports
 use std::fs;

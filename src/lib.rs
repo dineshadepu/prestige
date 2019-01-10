@@ -4,6 +4,7 @@
 pub mod contact_search;
 
 pub mod physics;
+pub mod geometry;
 
 // external imports
 use indicatif::{ProgressBar, ProgressStyle};

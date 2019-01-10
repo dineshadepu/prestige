@@ -46,7 +46,7 @@ fn test_cubic_kernel_attributes() {
 
 #[test]
 fn test_ck_wij() {
-    let pos = simple_shapes::linspace(0., PI / 2., 100).collect::<Vec<_>>();
+    let pos = crate::geometry::linspace(0., PI / 2., 100).collect::<Vec<_>>();
     let spacing = pos[2] - pos[1];
     let h = vec![1.2 * spacing; pos.len()];
     let ck = CubicKernel::new(1).unwrap();
@@ -59,7 +59,7 @@ fn test_ck_wij() {
 
 #[test]
 pub fn test_ck_dwij() {
-    let pos = simple_shapes::linspace(0., PI / 2., 1000).collect::<Vec<_>>();
+    let pos = crate::geometry::linspace(0., PI / 2., 1000).collect::<Vec<_>>();
     let spacing = pos[2] - pos[1];
     let h = vec![1.2 * spacing; pos.len()];
     let ck = CubicKernel::new(1).unwrap();

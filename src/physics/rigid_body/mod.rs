@@ -1,4 +1,3 @@
-// [[file:~/phd/code_phd/prestige/src/physics/rigid_body/rigid_body.org::*mod.rs][mod.rs:1]]
 pub mod equations;
 
 use cgmath::{Matrix3, Vector3};
@@ -42,9 +41,13 @@ pub struct RB3d {
     pub ang_vel: Vec<Vector3<f32>>,
     pub lin_mom: Vec<Vector3<f32>>,
     pub ang_mom: Vec<Vector3<f32>>,
+    pub cm_0: Vec<Vector3<f32>>,
+    pub lin_vel_0: Vec<Vector3<f32>>,
+    pub ang_mom_0: Vec<Vector3<f32>>,
     pub torque: Vec<Vector3<f32>>,
     pub net_force: Vec<Vector3<f32>>,
     pub orientation: Vec<Matrix3<f32>>,
+    pub orientation_0: Vec<Matrix3<f32>>,
     pub orientation_rate: Vec<Matrix3<f32>>,
     pub moi_body_inv: Vec<Matrix3<f32>>,
     pub moi_global_inv: Vec<Matrix3<f32>>,
@@ -85,9 +88,13 @@ impl RB3d {
             ang_vel: vec![Vector3::new(0., 0., 0.)],
             lin_mom: vec![Vector3::new(0., 0., 0.)],
             ang_mom: vec![Vector3::new(0., 0., 0.)],
+            cm_0: vec![Vector3::new(0., 0., 0.)],
+            lin_vel_0: vec![Vector3::new(0., 0., 0.)],
+            ang_mom_0: vec![Vector3::new(0., 0., 0.)],
             torque: vec![Vector3::new(0., 0., 0.)],
             net_force: vec![Vector3::new(0., 0., 0.)],
             orientation: vec![Matrix3::new(1., 0., 0., 0., 1., 0., 0., 0., 1.)],
+            orientation_0: vec![Matrix3::new(1., 0., 0., 0., 1., 0., 0., 0., 1.)],
             orientation_rate: vec![Matrix3::<f32>::zero()],
             moi_body_inv: vec![Matrix3::<f32>::zero()],
             moi_global_inv: vec![Matrix3::<f32>::zero()],
@@ -121,9 +128,13 @@ impl RB3d {
         self.ang_vel = vec![Vector3::new(0., 0., 0.); no_bodies];
         self.lin_mom = vec![Vector3::new(0., 0., 0.); no_bodies];
         self.ang_mom = vec![Vector3::new(0., 0., 0.); no_bodies];
+        self.cm_0 = vec![Vector3::new(0., 0., 0.); no_bodies];
+        self.lin_vel_0 = vec![Vector3::new(0., 0., 0.); no_bodies];
+        self.ang_mom_0 = vec![Vector3::new(0., 0., 0.); no_bodies];
         self.torque = vec![Vector3::new(0., 0., 0.); no_bodies];
         self.net_force = vec![Vector3::new(0., 0., 0.); no_bodies];
         self.orientation = vec![Matrix3::new(1., 0., 0., 0., 1., 0., 0., 0., 1.); no_bodies];
+        self.orientation_0 = vec![Matrix3::new(1., 0., 0., 0., 1., 0., 0., 0., 1.); no_bodies];
         self.orientation_rate = vec![Matrix3::<f32>::zero(); no_bodies];
         self.moi_body_inv = vec![Matrix3::<f32>::zero(); no_bodies];
         self.moi_global_inv = vec![Matrix3::<f32>::zero(); no_bodies];
@@ -267,4 +278,3 @@ impl WriteOutput for RB3d {
 
 // implement nnps macro
 impl_GetXYZH!(RB3d);
-// mod.rs:1 ends here
