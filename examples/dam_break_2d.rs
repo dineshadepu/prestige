@@ -24,31 +24,32 @@ use std::fs;
 
 fn create_entites(spacing: f32) -> (WCSPH, WCSPH) {
     // Get the dam break geometry
-    let (xc, yc, xt, yt) = create_2d_breaking_dam_geometry(Some(0.001));
+    let (xc, yc, xt, yt) = create_2d_breaking_dam_geometry(Some(spacing));
     let mut fluid = WCSPH::new_with_xy(xc.clone(), yc, 0);
     let mc = 1000. * spacing.powf(2.);
     fluid.rho = vec![1000.; xc.len()];
     fluid.m = vec![mc; xc.len()];
     fluid.h = vec![1.2 * spacing; xc.len()];
     let mut tank = WCSPH::new_with_xy(xt.clone(), yt, 1);
-    let rho_t = 2000.;
+    let rho_t = 1000.;
     let mt = rho_t * spacing.powf(3.);
     tank.m = vec![mt; xt.len()];
-    tank.h = vec![1.2 * spacing; xc.len()];
-    tank.rho = vec![1000.; xc.len()];
+    tank.h = vec![1.2 * spacing; xt.len()];
+    tank.rho = vec![1000.; xt.len()];
 
     (fluid, tank)
 }
 
 fn main() {
-    let spacing = 0.1;
+    let spacing = 0.001;
     // dimension
     let dim = 2;
 
     // entities
-    let (mut fluid, tank) = create_entites(spacing);
+    let (mut fluid, mut tank) = create_entites(spacing);
 
-    print_no_part(vec![&fluid.x, &tank.x]);
+    print_no_part(vec![&fluid.x]);
+    print_no_part(vec![&tank.x]);
 
     // setup nnps
     let world_bounds = WorldBounds::new(
@@ -67,7 +68,7 @@ fn main() {
     let mut t = 0.;
     let tf = 1.;
     let mut step_no = 0;
-    let pfreq = 100;
+    let pfreq = 1;
 
     let project_root = env!("CARGO_MANIFEST_DIR");
     let dir_name = project_root.to_owned() + "/dam_break_2d_output";
@@ -89,6 +90,7 @@ fn main() {
         // Algorithm 1
         // ----------------------
         reset_wcsph_entity(&mut fluid);
+        reset_wcsph_entity(&mut tank);
         summation_density(
             &fluid.x, &fluid.y, &fluid.z, &fluid.h,
             &fluid.m, &mut fluid.rho,
@@ -96,6 +98,7 @@ fn main() {
             &tank.x, &tank.y, &tank.z, tank.nnps_idx,
 
             &nnps, &kernel);
+
         summation_density(
             &fluid.x, &fluid.y, &fluid.z, &fluid.h,
             &fluid.m, &mut fluid.rho,
@@ -103,8 +106,23 @@ fn main() {
             &fluid.x, &fluid.y, &fluid.z, fluid.nnps_idx,
 
             &nnps, &kernel);
+        summation_density(
+            &tank.x, &tank.y, &tank.z, &tank.h,
+            &tank.m, &mut tank.rho,
 
-        equation_of_state(&mut fluid.p, &fluid.rho, 1000., 1., 10.*(2.*9.81*0.05717));
+            &fluid.x, &fluid.y, &fluid.z, fluid.nnps_idx,
+
+            &nnps, &kernel);
+        summation_density(
+            &tank.x, &tank.y, &tank.z, &tank.h,
+            &tank.m, &mut tank.rho,
+
+            &tank.x, &tank.y, &tank.z, tank.nnps_idx,
+
+            &nnps, &kernel);
+
+        equation_of_state(&mut fluid.p, &fluid.rho, 1000., 1., 1.*(2.*9.81*0.05717));
+        equation_of_state(&mut tank.p, &tank.rho, 1000., 1., 1.*(2.*9.81*0.05717));
 
         momentum_equation(
             &fluid.x, &fluid.y, &fluid.z, &fluid.u,

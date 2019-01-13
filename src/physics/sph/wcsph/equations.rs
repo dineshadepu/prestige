@@ -11,6 +11,7 @@ use crate::{EulerIntegrator, RK2Integrator};
 pub fn reset_wcsph_entity(entity: &mut WCSPH){
     for i in 0..entity.x.len(){
         entity.arho[i] = 0.;
+        entity.rho[i] = 0.;
         entity.au[i] = 0.;
         entity.av[i] = 0.;
         entity.aw[i] = 0.;
@@ -26,9 +27,9 @@ pub fn apply_gravity(
     gz: f32,
 ) {
     for i in 0..d_au.len() {
-        d_au[i] = gx;
-        d_av[i] = gy;
-        d_aw[i] = gz;
+        d_au[i] += gx;
+        d_av[i] += gy;
+        d_aw[i] += gz;
     }
 }
 
@@ -44,7 +45,11 @@ pub fn equation_of_state(d_p: &mut [f32], d_rho: &[f32], rho_rest: f32, gamma: f
     // B = c^2 \rho_0 / gamma
     let b = c.powf(2.) * rho_rest / gamma;
     for i in 0..d_p.len() {
-        d_p[i] = b * ((d_rho[i] / rho_rest).powf(gamma) - 1.);
+        if d_rho[i] > rho_rest {
+            d_p[i] = b * ((d_rho[i] / rho_rest).powf(gamma) - 1.);
+        } else {
+            d_p[i] = 0.;
+        }
     }
 }
 
