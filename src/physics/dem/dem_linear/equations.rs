@@ -1,5 +1,5 @@
 use super::{DEMLinear, TangCt};
-use crate::contact_search::{get_neighbours_1d, get_neighbours_2d, get_neighbours_3d, NNPS};
+use crate::contact_search::{NNPSGeneric};
 use crate::EulerIntegrator;
 use cgmath::prelude::*;
 use cgmath::{Vector3, Matrix3};
@@ -18,7 +18,7 @@ pub fn linear_dem_interparticle_force(
     s_omega_y: &[f32], s_omega_z: &[f32], s_dem_id:usize,
     s_nnps_id: usize,
 
-    nnps: &NNPS,
+    nnps: &(dyn NNPSGeneric + Sync),
     k_n: f32,
     eta_n: f32,
     k_t: f32,
@@ -61,12 +61,7 @@ pub fn linear_dem_interparticle_force(
             let mut s;
             let mut c;
             // let mut vij_dot_xij = 0.;
-            let nbrs = match nnps.dim {
-                1 => get_neighbours_1d(d_x[i], d_y[i], d_z[i], s_nnps_id, &nnps),
-                2 => get_neighbours_2d(d_x[i], d_y[i], d_z[i], s_nnps_id, &nnps),
-                3 => get_neighbours_3d(d_x[i], d_y[i], d_z[i], s_nnps_id, &nnps),
-                _ => panic!("Dimensions are wrong"),
-            };
+            let nbrs = nnps.get_neighbours(d_x[i], d_y[i], d_z[i], s_nnps_id);
 
             for &j in nbrs.iter() {
                 // Reset the forces for next contact

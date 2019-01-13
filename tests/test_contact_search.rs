@@ -1,11 +1,14 @@
+use prestige::geometry::{grid_arange, grid_arange_3d};
 use prestige::{
     contact_search::{
-        get_neighbours_2d, get_neighbours_3d, stash_2d, stash_3d, GetXYZH, WorldBounds, NNPS,
+        linked_nnps::{
+            stash_2d, stash_3d, LinkedNNPS, WorldBounds,
+        },
+        GetXYZH, NNPSGeneric
     },
     impl_GetXYZH,
 };
 use rand::Rng;
-use prestige::geometry::{grid_arange, grid_arange_3d};
 
 /// A simple struct used for nnps tests
 /// It has x, y, z and h as it's attributes and will derive a
@@ -42,7 +45,7 @@ fn test_nnps_attributes_1d() {
     let no_entites = 1;
     let (x_min, x_max, y_min, y_max, z_min, z_max, max_size) = (0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.1);
     let world_bound = WorldBounds::new(x_min, x_max, y_min, y_max, z_min, z_max, max_size);
-    let nnps = NNPS::new(no_entites, &world_bound, dim);
+    let nnps = LinkedNNPS::new(no_entites, &world_bound, dim);
 
     // check number of cells in each direction
     // with a length of 1.0 meter in each direction and max size of the particle
@@ -81,7 +84,7 @@ fn test_nnps_attributes_1d() {
     let no_entites = 3;
     let (x_min, x_max, y_min, y_max, z_min, z_max, max_size) = (0.0, 1.05, 0.0, 1.0, 0.0, 0.0, 0.1);
     let world_bound = WorldBounds::new(x_min, x_max, y_min, y_max, z_min, z_max, max_size);
-    let nnps = NNPS::new(no_entites, &world_bound, dim);
+    let nnps = LinkedNNPS::new(no_entites, &world_bound, dim);
 
     //
     //
@@ -110,7 +113,7 @@ fn test_nnps_attributes_1d() {
     let (x_min, x_max, y_min, y_max, z_min, z_max, max_size) =
         (0.0, 1.05, 0.0, 1.0, 0.0, 0.22, 0.1);
     let world_bound = WorldBounds::new(x_min, x_max, y_min, y_max, z_min, z_max, max_size);
-    let nnps = NNPS::new(no_entites, &world_bound, dim);
+    let nnps = LinkedNNPS::new(no_entites, &world_bound, dim);
 
     assert_eq!(11, nnps.no_x_cells);
     assert_eq!(11, nnps.no_y_cells);
@@ -130,7 +133,7 @@ fn test_nnps_attributes_1d() {
     let (x_min, x_max, y_min, y_max, z_min, z_max, max_size) =
         (0.0, 1.05, 0.0, 1.0, 0.0, 0.22, 0.1);
     let world_bound = WorldBounds::new(x_min, x_max, y_min, y_max, z_min, z_max, max_size);
-    let nnps = NNPS::new(no_entites, &world_bound, dim);
+    let nnps = LinkedNNPS::new(no_entites, &world_bound, dim);
 
     assert_eq!(11, nnps.no_x_cells);
     assert_eq!(11, nnps.no_y_cells);
@@ -154,7 +157,7 @@ fn test_stash_2d_single_entity() {
     let no_entites = 1;
     let (x_min, x_max, y_min, y_max, z_min, z_max, max_size) = (0.0, 0.4, 0.0, 0.7, 0.0, 0.0, 0.1);
     let world_bound = WorldBounds::new(x_min, x_max, y_min, y_max, z_min, z_max, max_size);
-    let mut nnps = NNPS::new(no_entites, &world_bound, dim);
+    let mut nnps = LinkedNNPS::new(no_entites, &world_bound, dim);
     assert_eq!(5, nnps.no_x_cells);
     assert_eq!(8, nnps.no_y_cells);
     assert_eq!(1, nnps.no_z_cells);
@@ -223,7 +226,7 @@ fn test_stash_2d_multiple_entity() {
     let no_entites = 3;
     let (x_min, x_max, y_min, y_max, z_min, z_max, max_size) = (0.0, 0.4, 0.0, 0.7, 0.0, 0.0, 0.1);
     let world_bound = WorldBounds::new(x_min, x_max, y_min, y_max, z_min, z_max, max_size);
-    let mut nnps = NNPS::new(no_entites, &world_bound, dim);
+    let mut nnps = LinkedNNPS::new(no_entites, &world_bound, dim);
     assert_eq!(5, nnps.no_x_cells);
     assert_eq!(8, nnps.no_y_cells);
     assert_eq!(1, nnps.no_z_cells);
@@ -324,14 +327,14 @@ fn test_get_neighbours_2d() {
     let no_entites = 1;
     let (x_min, x_max, y_min, y_max, z_min, z_max) = (0.0, 1.0, 0.0, 1.0, 0.0, 0.0);
     let world_bound = WorldBounds::new(x_min, x_max, y_min, y_max, z_min, z_max, max_size);
-    let mut nnps = NNPS::new(no_entites, &world_bound, dim);
+    let mut nnps = LinkedNNPS::new(no_entites, &world_bound, dim);
 
     // stash the particles
     stash_2d(vec![&smpl], &mut nnps);
 
     for i in (0..x.len()).step_by(5) {
         // get the neighbours from nnps
-        let nbrs = get_neighbours_2d(x[i], y[i], 0., smpl.nnps_idx, &nnps);
+        let nbrs = nnps.get_neighbours(x[i], y[i], 0., smpl.nnps_idx);
         let mut filtered_nbrs = vec![];
         // select the neighbours which are in limit or radius scale.
         for &j in nbrs.iter() {
@@ -372,7 +375,7 @@ fn test_get_neighbours_2d() {
     let no_entites = 1;
     let (x_min, x_max, y_min, y_max, z_min, z_max) = (0.0, 10.0, 0.0, 10.0, 0.0, 0.0);
     let world_bound = WorldBounds::new(x_min, x_max, y_min, y_max, z_min, z_max, max_size);
-    let mut nnps = NNPS::new(no_entites, &world_bound, dim);
+    let mut nnps = LinkedNNPS::new(no_entites, &world_bound, dim);
 
     // create a 2d domain but with random numbers
 
@@ -394,7 +397,7 @@ fn test_get_neighbours_2d() {
 
     for i in (0..x.len()).step_by(5) {
         // get the neighbours from nnps
-        let nbrs = get_neighbours_2d(x[i], y[i], 0., smpl.nnps_idx, &nnps);
+        let nbrs = nnps.get_neighbours(x[i], y[i], 0., smpl.nnps_idx);
         // println!("Length of pure neighbours {:?}", nbrs.len());
         let mut filtered_nbrs = vec![];
         // select the neighbours which are in limit or radius scale.
@@ -445,7 +448,7 @@ fn test_get_neighbours_3d() {
     let no_entites = 1;
     let (x_min, x_max, y_min, y_max, z_min, z_max) = (0.0, 1.0, 0.0, 1.0, 0.0, 1.0);
     let world_bound = WorldBounds::new(x_min, x_max, y_min, y_max, z_min, z_max, max_size);
-    let mut nnps = NNPS::new(no_entites, &world_bound, dim);
+    let mut nnps = LinkedNNPS::new(no_entites, &world_bound, dim);
     // println!("{:?}", nnps);
 
     // stash the particles
@@ -453,7 +456,7 @@ fn test_get_neighbours_3d() {
 
     for i in (0..x.len()).step_by(5) {
         // get the neighbours from nnps
-        let nbrs = get_neighbours_3d(x[i], y[i], z[i], smpl.nnps_idx, &nnps);
+        let nbrs = nnps.get_neighbours(x[i], y[i], z[i], smpl.nnps_idx);
         let mut filtered_nbrs = vec![];
         // select the neighbours which are in limit or radius scale.
         for &j in nbrs.iter() {
@@ -496,7 +499,7 @@ fn test_get_neighbours_3d() {
     let no_entites = 1;
     let (x_min, x_max, y_min, y_max, z_min, z_max) = (0.0, 1.0, 0.0, 1.0, 0.0, 1.0);
     let world_bound = WorldBounds::new(x_min, x_max, y_min, y_max, z_min, z_max, max_size);
-    let mut nnps = NNPS::new(no_entites, &world_bound, dim);
+    let mut nnps = LinkedNNPS::new(no_entites, &world_bound, dim);
 
     // create a 2d domain but with random numbers
     let (mut x, mut y, mut z) = (vec![], vec![], vec![]);
@@ -522,7 +525,7 @@ fn test_get_neighbours_3d() {
 
     for i in (0..x.len()).step_by(5) {
         // get the neighbours from nnps
-        let nbrs = get_neighbours_3d(x[i], y[i], z[i], smpl.nnps_idx, &nnps);
+        let nbrs = nnps.get_neighbours(x[i], y[i], z[i], smpl.nnps_idx);
         println!("Length of pure neighbours {:?}", nbrs.len());
         let mut filtered_nbrs = vec![];
         // select the neighbours which are in limit or radius scale.

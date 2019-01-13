@@ -1,6 +1,5 @@
-// [[file:~/phd/code_phd/prestige/src/physics/rigid_body/rigid_body.org::rigid_bod_equations][rigid_bod_equations]]
 use super::RB3d;
-use crate::contact_search::{get_neighbours_1d, get_neighbours_2d, get_neighbours_3d, NNPS};
+use crate::contact_search::NNPSGeneric;
 use crate::{EulerIntegrator, RK2Integrator};
 use cgmath::prelude::*;
 use cgmath::Matrix3;
@@ -150,27 +149,14 @@ pub fn apply_gravity(
 }
 
 pub fn linear_interparticle_force(
-    d_x: &[f32],
-    d_y: &[f32],
-    d_z: &[f32],
-    d_u: &[f32],
-    d_v: &[f32],
-    d_w: &[f32],
-    d_rad: &[f32],
-    d_fx: &mut [f32],
-    d_fy: &mut [f32],
-    d_fz: &mut [f32],
+    d_x: &[f32], d_y: &[f32], d_z: &[f32], d_u: &[f32],
+    d_v: &[f32], d_w: &[f32], d_rad: &[f32], d_fx: &mut [f32],
+    d_fy: &mut [f32], d_fz: &mut [f32], s_x: &[f32],
 
-    s_x: &[f32],
-    s_y: &[f32],
-    s_z: &[f32],
-    s_u: &[f32],
-    s_v: &[f32],
-    s_w: &[f32],
-    s_rad: &[f32],
-    s_nnps_id: usize,
+    s_y: &[f32], s_z: &[f32], s_u: &[f32], s_v: &[f32],
+    s_w: &[f32], s_rad: &[f32], s_nnps_id: usize,
 
-    nnps: &NNPS,
+    nnps: &(dyn NNPSGeneric+ Sync),
     k_n: f32,
     eta_n: f32,
 ) {
@@ -185,12 +171,7 @@ pub fn linear_interparticle_force(
 
             let mut rij;
             let mut overlap_n;
-            let nbrs = match nnps.dim {
-                1 => get_neighbours_1d(d_x[i], d_y[i], d_z[i], s_nnps_id, &nnps),
-                2 => get_neighbours_2d(d_x[i], d_y[i], d_z[i], s_nnps_id, &nnps),
-                3 => get_neighbours_3d(d_x[i], d_y[i], d_z[i], s_nnps_id, &nnps),
-                _ => panic!("Dimensions are wrong"),
-            };
+            let nbrs = nnps.get_neighbours(d_x[i], d_y[i], d_z[i], s_nnps_id);
 
             for &j in nbrs.iter() {
                 // Reset the forces for next contact
@@ -488,4 +469,3 @@ impl RK2Integrator for RB3d {
         }
     }
 }
-// rigid_bod_equations ends here

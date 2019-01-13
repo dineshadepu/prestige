@@ -2,7 +2,7 @@ extern crate prestige;
 
 // crates imports
 use prestige::{
-    contact_search::{stash_2d, WorldBounds, NNPS},
+    contact_search::linked_nnps::{stash_2d, WorldBounds, LinkedNNPS},
     physics::rigid_body::{
         equations::{apply_gravity, linear_interparticle_force},
         RB3d,
@@ -66,7 +66,7 @@ fn main() {
 
     // setup nnps
     let world_bounds = WorldBounds::new(-0.01, 0.3, -0.01, 0.3, 0.0, 0.0, 2. * spacing);
-    let mut nnps = NNPS::new(2, &world_bounds, dim);
+    let mut nnps = LinkedNNPS::new(2, &world_bounds, dim);
 
     // solver data
     let dt = 1e-4;

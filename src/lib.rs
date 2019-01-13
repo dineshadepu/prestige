@@ -3,8 +3,8 @@
 #[macro_use]
 pub mod contact_search;
 
-pub mod physics;
 pub mod geometry;
+pub mod physics;
 
 // external imports
 use indicatif::{ProgressBar, ProgressStyle};
@@ -26,24 +26,25 @@ pub trait EulerIntegrator {
     fn euler_stage_1(&mut self, dt: f32);
 }
 
-pub fn rk2_initialize<T: RK2Integrator>(entites: &mut Vec<&mut T>){
-    for entity in entites{
+pub fn rk2_initialize<T: RK2Integrator>(entites: &mut Vec<&mut T>) {
+    for entity in entites {
         entity.rk2_initialize();
     }
 }
 
-pub fn rk2_stage_1<T: RK2Integrator>(entites: &mut Vec<&mut T>, dt: f32){
-    for entity in entites{
+pub fn rk2_stage_1<T: RK2Integrator>(entites: &mut Vec<&mut T>, dt: f32) {
+    for entity in entites {
         entity.rk2_stage_1(dt);
     }
 }
 
-pub fn rk2_stage_2<T: RK2Integrator>(entites: &mut Vec<&mut T>, dt: f32){
-    for entity in entites{
+pub fn rk2_stage_2<T: RK2Integrator>(entites: &mut Vec<&mut T>, dt: f32) {
+    for entity in entites {
         entity.rk2_stage_2(dt);
     }
 }
-pub fn setup_progress_bar(total_steps: u64) -> ProgressBar{
+
+pub fn setup_progress_bar(total_steps: u64) -> ProgressBar {
     let pb = ProgressBar::new(total_steps);
     pb.set_style(
         ProgressStyle::default_bar()
@@ -51,5 +52,12 @@ pub fn setup_progress_bar(total_steps: u64) -> ProgressBar{
             .progress_chars("#>-"),
     );
     pb
+}
 
+pub fn print_no_part(pars: Vec<&Vec<f32>>) {
+    let mut total_pars = 0;
+    for x in pars {
+        total_pars += x.len();
+    }
+    println!("Total particles {}", total_pars);
 }

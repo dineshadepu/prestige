@@ -37,13 +37,11 @@ pub struct WCSPH {
     pub p: Vec<f32>,
     pub c: Vec<f32>,
     pub nnps_idx: usize,
-    pub no_par: usize,
 }
 
 impl WCSPH {
     pub fn new_with_xyz(x: Vec<f32>, y: Vec<f32>, z: Vec<f32>, nnps_idx: usize) -> Self {
         let other_props = vec![0.; x.len()];
-        let no_par = x.len();
         WCSPH {
             x: x,
             y: y,
@@ -68,8 +66,12 @@ impl WCSPH {
             p: other_props.clone(),
             c: other_props.clone(),
             nnps_idx: nnps_idx,
-            no_par: no_par,
         }
+    }
+
+    pub fn new_with_xy(x: Vec<f32>, y: Vec<f32>, nnps_idx: usize) -> Self {
+        let other_props = vec![0.; x.len()];
+        WCSPH::new_with_xyz(x, y, other_props, nnps_idx)
     }
 }
 

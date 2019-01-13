@@ -1,4 +1,4 @@
-use super::{tank_2d, circle_2d};
+use super::{circle_2d, grid_arange, tank_2d};
 
 /// Create stack of cylinders as in the benchmark of Zhang
 pub fn create_cylinders_zhang(spacing: f32) -> (Vec<f32>, Vec<f32>, Vec<usize>) {
@@ -106,7 +106,7 @@ pub fn create_cylinders_zhang(spacing: f32) -> (Vec<f32>, Vec<f32>, Vec<usize>) 
     let no_of_cylinders = 3 * 6 + 3 * 5;
     let mut b_id = vec![];
 
-    for i in 0..no_of_cylinders{
+    for i in 0..no_of_cylinders {
         b_id.extend_from_slice(&vec![i; no_of_particles]);
     }
 
@@ -114,15 +114,45 @@ pub fn create_cylinders_zhang(spacing: f32) -> (Vec<f32>, Vec<f32>, Vec<usize>) 
 }
 
 /// Create geometry as in the benchmark of Zhang solid bodies
-pub fn create_zhang_geometry(spacing: f32) -> (Vec<f32>, Vec<f32>, Vec<usize>, Vec<f32>, Vec<f32>){
+pub fn create_zhang_geometry(spacing: f32) -> (Vec<f32>, Vec<f32>, Vec<usize>, Vec<f32>, Vec<f32>) {
     // get the x, y and body id vectors
     let (xc, yc, bid) = create_cylinders_zhang(spacing);
     // create the tank
     let layers = 3;
     // create a tank with 26 cm length, 26 cm height
     let (xt, yt) = tank_2d(
-        0.0, 0.26 + spacing / 2., spacing, 0.0,
-        0.26 + spacing / 2., spacing, layers, true);
+        0.0,
+        0.26 + spacing / 2.,
+        spacing,
+        0.0,
+        0.26 + spacing / 2.,
+        spacing,
+        layers,
+        true,
+    );
 
     (xc, yc, bid, xt, yt)
+}
+
+/// 2d breaking dam geometry
+pub fn create_2d_breaking_dam_geometry(
+    spacing: Option<f32>,
+) -> (Vec<f32>, Vec<f32>, Vec<f32>, Vec<f32>) {
+    // switch back to default if nothing is specified
+    let spacing = spacing.unwrap_or(0.001);
+
+    // water column is 0.05717 m high. Ceate a grid of fluid block
+    let (xf, yf) = grid_arange(
+        0.0,
+        0.05717 + spacing / 2.,
+        spacing,
+        0.0,
+        0.05717 + spacing / 2.,
+        spacing,
+    );
+
+    // create the tank
+    let (xt, yt) = tank_2d(0.0, 0.2, spacing, 0.0, 0.2, spacing, 2, true);
+
+    (xf, yf, xt, yt)
 }

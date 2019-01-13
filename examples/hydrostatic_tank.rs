@@ -1,12 +1,12 @@
-// [[file:~/phd/code_phd/prestige/src/physics/rigid_body/rigid_body.org::*Example%201][Example 1:1]]
 extern crate prestige;
 extern crate indicatif;
 
 // crates imports
 use prestige::{
-    contact_search::linked_nnps::{stash_3d, WorldBounds, LinkedNNPS},
+    contact_search::linked_nnps::{stash_2d, WorldBounds, LinkedNNPS},
     EulerIntegrator, WriteOutput,
     physics::rigid_body::{RB3d, equations::{linear_interparticle_force, apply_gravity}}
+    // physics::sph::wcsph,
 };
 
 // external crate imports
@@ -85,7 +85,7 @@ fn main() {
                  .progress_chars("#>-"));
     while t < tf {
         // stash the particles into the world's cells
-        stash_3d(vec![&body, &tank], &mut nnps);
+        stash_2d(vec![&body, &tank], &mut nnps);
 
         apply_gravity(&body.m, &mut body.fx, &mut body.fy, &mut body.fz, 0.0, -9.81, 0.0);
         linear_interparticle_force(
@@ -113,4 +113,3 @@ fn main() {
     }
     pb.finish_with_message("Simulation succesfully completed");
 }
-// Example 1:1 ends here

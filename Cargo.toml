@@ -13,3 +13,10 @@ rand = "0.6"
 assert_approx_eq = "*"
 cgmath = "*"
 itertools-num = "0.1"
+
+[dev-dependencies]
+criterion = "0.2"
+
+[[bench]]
+name = "bench_llnnps"
+harness = false

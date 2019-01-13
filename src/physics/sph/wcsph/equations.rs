@@ -5,20 +5,15 @@ use rayon::prelude::*;
 use super::WCSPH;
 use crate::contact_search::{NNPSGeneric};
 use crate::physics::sph::kernel::Kernel;
-use crate::RK2Integrator;
+use crate::{EulerIntegrator, RK2Integrator};
 
 
-pub fn make_accelerations_zero(
-    d_au: &mut [f32],
-    d_av: &mut [f32],
-    d_aw: &mut [f32],
-    d_arho: &mut [f32],
-) {
-    for i in 0..d_au.len() {
-        d_au[i] = 0.;
-        d_av[i] = 0.;
-        d_aw[i] = 0.;
-        d_arho[i] = 0.;
+pub fn reset_wcsph_entity(entity: &mut WCSPH){
+    for i in 0..entity.x.len(){
+        entity.arho[i] = 0.;
+        entity.au[i] = 0.;
+        entity.av[i] = 0.;
+        entity.aw[i] = 0.;
     }
 }
 
@@ -40,6 +35,7 @@ pub fn apply_gravity(
 /// Equation of state to compute the pressure from density and speed of sound
 /// See pg no 8, eq 3.7 in `Smoothed Particle Hydrodynamics A Study of the
 /// possibilities of SPH in hydraulic engineering`
+/// https://cg.informatik.uni-freiburg.de/publications/2007_SCA_SPH.pdf
 //
 // Use this equation in the following way
 //
@@ -52,7 +48,7 @@ pub fn equation_of_state(d_p: &mut [f32], d_rho: &[f32], rho_rest: f32, gamma: f
     }
 }
 
-pub fn summation_density<T: NNPSGeneric>(
+pub fn summation_density(
     d_x: &[f32], d_y: &[f32], d_z: &[f32], d_h: &[f32],
     d_m: &[f32], d_rho: &mut [f32], s_x: &[f32], s_y: &[f32],
     s_z: &[f32], s_nnps_id: usize, nnps: &(dyn NNPSGeneric+ Sync),
@@ -108,18 +104,21 @@ pub fn continuity_equation(
 
 
 /// Momentum equation to compute rate of change of velocity of a particle.
+/// https://pdfs.semanticscholar.org/50d1/76a68ea2088d6256ef192a5fdf7a27f41f5e.pdf
 //
+
 // momentum_equation(&d_x, &d_y, &d_u, &d_v, &d_h, &d_p, &d_rho, &mut d_au, &mut d_av,
 //                   &s_x, &s_y, &s_u, &s_v, &s_m, &s_p, &s_rho, s_nnps_id, &nnps, &kernel);
 pub fn momentum_equation(
     d_x: &[f32], d_y: &[f32], d_z: &[f32], d_u: &[f32], d_v: &[f32],
     d_w: &[f32], d_h: &[f32], d_p: &[f32], d_rho: &[f32],
-    d_c: &[f32], d_au: &mut [f32], d_av: &mut [f32], d_aw: &mut [f32],
+    d_au: &mut [f32], d_av: &mut [f32], d_aw: &mut [f32],
 
     s_x: &[f32], s_y: &[f32], s_z: &[f32], s_u: &[f32],
     s_v: &[f32], s_w: &[f32], s_h: &[f32], s_m: &[f32],
-    s_p: &[f32], s_rho: &[f32], s_c: &[f32], s_nnps_id: usize,
-    alpha: f32, nnps: &(dyn NNPSGeneric + Sync), kernel: &(dyn Kernel + Sync),)
+    s_p: &[f32], s_rho: &[f32], s_nnps_id: usize,
+
+    cs: f32, alpha: f32, nnps: &(dyn NNPSGeneric + Sync), kernel: &(dyn Kernel + Sync),)
 {
     d_au.par_iter_mut()
         .zip(d_av.par_iter_mut()
@@ -128,7 +127,7 @@ pub fn momentum_equation(
             let mut dwij = vec![0.; 3];
             let mut xij = vec![0.; 3];
             let mut uij = vec![0.; 3];
-            let (mut rij, mut cij, mut hij, mut tmp, mut uij_dot_xij, mut rhoij, mut muij);
+            let (mut rij, mut hij, mut tmp, mut uij_dot_xij, mut rhoij, mut muij);
             let mut art_vis = 0.;
             let nbrs = nnps.get_neighbours(d_x[i], d_y[i], d_z[i], s_nnps_id);
             for &j in nbrs.iter() {
@@ -139,17 +138,22 @@ pub fn momentum_equation(
                 uij[1] = d_v[i] - s_v[j];
                 uij[2] = d_w[i] - s_w[j];
                 rij = (xij[0] * xij[0] + xij[1] * xij[1] + xij[2] * xij[2]).sqrt();
+
+                // compute the gradient
                 kernel.get_dwij(&xij, &mut dwij, rij, d_h[i]);
 
                 // artificial viscosity
                 if alpha > 0. {
                     uij_dot_xij = uij[0] * xij[0] + uij[1] * xij[1] + uij[2] * xij[2];
-                    cij = 0.5 * (d_c[i] + s_c[j]);
-                    hij = 0.5 * (d_h[i] + s_h[j]);
+                    if uij_dot_xij < 0. {
+                        hij = 0.5 * (d_h[i] + s_h[j]);
 
-                    rhoij = 0.5 * (d_rho[i] + s_rho[j]);
-                    muij = (hij * uij_dot_xij) / (rij.powf(2.) + (0.1 * hij).powf(2.));
-                    art_vis = -alpha * cij * muij / rhoij;
+                        rhoij = 0.5 * (d_rho[i] + s_rho[j]);
+                        muij = (hij * uij_dot_xij) / (rij.powf(2.) + (0.1 * hij).powf(2.));
+                        art_vis = -alpha * cs * muij / rhoij;
+                    } else {
+                        art_vis = 0.;
+                    }
                 };
 
                 tmp = s_m[j] * (d_p[i] / d_rho[i].powf(2.) + s_p[j] / s_rho[j].powf(2.)) + art_vis;
@@ -246,6 +250,21 @@ impl RK2Integrator for WCSPH {
             self.x[i] = self.x0[i] + self.u[i] * dt;
             self.y[i] = self.y0[i] + self.v[i] * dt;
             self.z[i] = self.z0[i] + self.w[i] * dt;
+        }
+    }
+}
+
+impl EulerIntegrator for WCSPH{
+    fn euler_stage_1(&mut self, dt: f32){
+        for i in 0..self.x.len(){
+            self.rho[i] = self.rho[i] + self.arho[i] * dt;
+            self.u[i] += self.au[i]*dt;
+            self.v[i] += self.av[i]*dt;
+            self.w[i] += self.aw[i]*dt;
+
+            self.x[i] += self.u[i]*dt;
+            self.y[i] += self.v[i]*dt;
+            self.z[i] += self.w[i]*dt;
         }
     }
 }
