@@ -11,7 +11,6 @@ use crate::{EulerIntegrator, RK2Integrator};
 pub fn reset_wcsph_entity(entity: &mut WCSPH){
     for i in 0..entity.x.len(){
         entity.arho[i] = 0.;
-        entity.rho[i] = 0.;
         entity.au[i] = 0.;
         entity.av[i] = 0.;
         entity.aw[i] = 0.;
