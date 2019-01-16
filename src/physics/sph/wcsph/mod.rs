@@ -1,6 +1,9 @@
 // sub modules
 #[macro_use] pub mod equations;
 
+#[cfg(test)]
+mod test_wcsph_equations;
+
 // local library imports
 use crate::WriteOutput;
 // import to implement this trait for nnps functionality

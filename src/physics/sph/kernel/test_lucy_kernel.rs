@@ -13,7 +13,7 @@ fn test_lucy_kernel_attributes() {
     assert_eq!(lk.sigma, 5. / 4.);
 }
 
-#[test]
+#[test] #[ignore]
 fn test_lk_wij() {
     let pos = crate::geometry::linspace(0., PI / 2., 100).collect::<Vec<_>>();
     let spacing = pos[2] - pos[1];

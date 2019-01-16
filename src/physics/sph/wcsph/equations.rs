@@ -106,6 +106,21 @@ pub fn continuity_equation(
     });
 }
 
+#[macro_export]
+macro_rules! continuity_eq_macro {
+    ($dest:ident, $source:ident, $nnps:ident, $kernel:ident) => {
+        continuity_equation(
+            &$dest.x, &$dest.y, &$dest.z, &$dest.u,
+            &$dest.v, &$dest.w, &$dest.h, &mut $dest.arho,
+
+            &$source.x, &$source.y, &$source.z, &$source.u,
+            &$source.v, &$source.w, &$source.m, $source.nnps_idx,
+
+            &$nnps,
+            &$kernel,
+        );
+    };
+}
 
 /// Momentum equation to compute rate of change of velocity of a particle.
 /// https://pdfs.semanticscholar.org/50d1/76a68ea2088d6256ef192a5fdf7a27f41f5e.pdf

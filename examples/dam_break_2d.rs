@@ -48,10 +48,10 @@ fn main() {
 
     // setup nnps
     let world_bounds = WorldBounds::new(
-        -3.,
-        3.,
-        -5.,
-        5.,
+        -2. * spacing,
+        0.21,
+        -2. * spacing,
+        0.21,
         0.,
         0.,
         2. * 1.2 * spacing,
@@ -61,9 +61,9 @@ fn main() {
     // solver data
     let dt = 1e-4;
     let mut t = 0.;
-    let tf = 0.05;
+    let tf = 0.5;
     let mut step_no = 0;
-    let pfreq = 1;
+    let pfreq = 100;
 
     let project_root = env!("CARGO_MANIFEST_DIR");
     let dir_name = project_root.to_owned() + "/dam_break_2d_output";
@@ -86,6 +86,7 @@ fn main() {
         // Algorithm 1
         // ----------------------
         fluid.rk2_initialize();
+        tank.rk2_initialize();
 
         // stage 1
         reset_wcsph_entity(&mut fluid);
@@ -206,8 +207,8 @@ fn main() {
             0.0, -9.81, 0.0,
         );
 
-        fluid.rk2_stage_1(dt);
-        tank.rk2_stage_1(dt);
+        fluid.rk2_stage_2(dt);
+        tank.rk2_stage_2(dt);
 
 
 
