@@ -2,18 +2,24 @@ extern crate prestige;
 
 // crates imports
 use prestige::{
+    continuity_and_momentum_eq_macro,
+    continuity_eq_macro,
+    momentum_eq_macro,
     contact_search::linked_nnps::{stash_2d, LinkedNNPS, WorldBounds},
     physics::sph::{
         wcsph,
         kernel::CubicKernel,
         wcsph::equations::{
-            continuity_and_momentum_equation, continuity_equation, equation_of_state,
-            momentum_equation, reset_wcsph_entity, summation_density,
+            continuity_equation,
+            momentum_equation,
+            continuity_and_momentum_equation, tait_equation,
+            reset_wcsph_entity,
         },
         wcsph::WCSPH,
     },
-    print_no_part, setup_progress_bar, EulerIntegrator, WriteOutput, RK2Integrator,
+    print_no_part, setup_progress_bar, RK2Integrator, WriteOutput,
 };
+
 
 use prestige::geometry::benchmarks::create_2d_breaking_dam_geometry;
 
@@ -39,6 +45,8 @@ fn create_entites(spacing: f32) -> (WCSPH, WCSPH) {
 }
 
 fn main() {
+    // simulation variables
+    let c0 = (2. as f32 * 9.81 * 0.05).sqrt();
     let spacing = 0.003;
     let dim = 2;
 
@@ -48,9 +56,9 @@ fn main() {
 
     // setup nnps
     let world_bounds = WorldBounds::new(
-        -2. * spacing,
+        -0.1,
         0.21,
-        -2. * spacing,
+        -0.05,
         0.21,
         0.,
         0.,
@@ -79,7 +87,6 @@ fn main() {
     while t < tf {
         // stash the particles into the world's cells
         stash_2d(vec![&fluid, &tank], &mut nnps);
-        // stash_2d(vec![&fluid], &mut nnps);
 
         // https://cg.informatik.uni-freiburg.de/publications/2014_EG_SPH_STAR.pdf
         // ----------------------
@@ -88,58 +95,22 @@ fn main() {
         fluid.rk2_initialize();
         tank.rk2_initialize();
 
-        // stage 1
+        //////////////
+        // stage 1  //
+        //////////////
+
+
         reset_wcsph_entity(&mut fluid);
         reset_wcsph_entity(&mut tank);
 
-        continuity_and_momentum_equation(
-            &fluid.x, &fluid.y, &fluid.z, &fluid.u, &fluid.v,
-            &fluid.w, &fluid.h, &fluid.p, &fluid.rho,
-            &fluid.c,
-            &mut fluid.arho,  &mut fluid.au, &mut fluid.av, &mut fluid.aw,
+        tait_equation(&mut fluid.p, &mut fluid.cs, &fluid.rho, 1000., 7., c0);
+        tait_equation(&mut tank.p, &mut tank.cs, &tank.rho, 1000., 7., c0);
 
-            &tank.x, &tank.y, &tank.z, &tank.u, &tank.v,
-            &tank.w, &tank.h, &tank.m, &tank.p, &tank.rho, &tank.c,
-            tank.nnps_idx,
+        continuity_and_momentum_eq_macro!(fluid, tank, nnps, kernel, 0.0, 0.0);
+        continuity_and_momentum_eq_macro!(fluid, fluid, nnps, kernel, 0.0, 0.0);
 
-            0.0, &nnps, &kernel,
-        );
-
-        continuity_and_momentum_equation(
-            &fluid.x, &fluid.y, &fluid.z, &fluid.u, &fluid.v,
-            &fluid.w, &fluid.h, &fluid.p, &fluid.rho,
-            &fluid.c,
-            &mut fluid.arho,  &mut fluid.au, &mut fluid.av, &mut fluid.aw,
-
-            &fluid.x, &fluid.y, &fluid.z, &fluid.u, &fluid.v,
-            &fluid.w, &fluid.h, &fluid.m, &fluid.p, &fluid.rho, &fluid.c,
-            fluid.nnps_idx,
-
-            0.0, &nnps, &kernel,
-        );
-
-        continuity_equation(
-            &tank.x, &tank.y, &tank.z, &tank.u,
-            &tank.v, &tank.w, &tank.h, &mut tank.arho,
-
-            &tank.x, &tank.y, &tank.z, &tank.u,
-            &tank.v, &tank.w, &tank.m, tank.nnps_idx,
-            &nnps, &kernel
-        );
-
-        continuity_equation(
-            &tank.x, &tank.y, &tank.z, &tank.u,
-            &tank.v, &tank.w, &tank.h, &mut tank.arho,
-
-            &fluid.x, &fluid.y, &fluid.z, &fluid.u,
-            &fluid.v, &fluid.w, &fluid.m, fluid.nnps_idx,
-            &nnps, &kernel
-        );
-
-        equation_of_state(&mut fluid.p, &fluid.rho, 1000., 1., 1.);
-        equation_of_state(&mut tank.p, &tank.rho, 1000., 1., 1.);
-        // equation_of_state(&mut fluid.p, &fluid.rho, 1000., 1., 1.*(2.*9.81*0.05717));
-        // equation_of_state(&mut tank.p, &tank.rho, 1000., 1., 1.*(2.*9.81*0.05717));
+        continuity_eq_macro!(tank, fluid, nnps, kernel);
+        continuity_eq_macro!(tank, tank, nnps, kernel);
 
         wcsph::equations::apply_gravity(
             &mut fluid.au, &mut fluid.av, &mut fluid.aw,
@@ -149,58 +120,21 @@ fn main() {
         fluid.rk2_stage_1(dt);
         tank.rk2_stage_1(dt);
 
-        // stage 2
+        //////////////
+        // stage 2  //
+        //////////////
+
         reset_wcsph_entity(&mut fluid);
         reset_wcsph_entity(&mut tank);
 
-        continuity_and_momentum_equation(
-            &fluid.x, &fluid.y, &fluid.z, &fluid.u, &fluid.v,
-            &fluid.w, &fluid.h, &fluid.p, &fluid.rho,
-            &fluid.c,
-            &mut fluid.arho,  &mut fluid.au, &mut fluid.av, &mut fluid.aw,
+        tait_equation(&mut fluid.p, &mut fluid.cs, &fluid.rho, 1000., 7., c0);
+        tait_equation(&mut tank.p, &mut tank.cs, &tank.rho, 1000., 7., c0);
 
-            &tank.x, &tank.y, &tank.z, &tank.u, &tank.v,
-            &tank.w, &tank.h, &tank.m, &tank.p, &tank.rho, &tank.c,
-            tank.nnps_idx,
+        continuity_and_momentum_eq_macro!(fluid, tank, nnps, kernel, 0.0, 0.0);
+        continuity_and_momentum_eq_macro!(fluid, fluid, nnps, kernel, 0.0, 0.0);
 
-            0.0, &nnps, &kernel,
-        );
-
-        continuity_and_momentum_equation(
-            &fluid.x, &fluid.y, &fluid.z, &fluid.u, &fluid.v,
-            &fluid.w, &fluid.h, &fluid.p, &fluid.rho,
-            &fluid.c,
-            &mut fluid.arho,  &mut fluid.au, &mut fluid.av, &mut fluid.aw,
-
-            &fluid.x, &fluid.y, &fluid.z, &fluid.u, &fluid.v,
-            &fluid.w, &fluid.h, &fluid.m, &fluid.p, &fluid.rho, &fluid.c,
-            fluid.nnps_idx,
-
-            0.0, &nnps, &kernel,
-        );
-
-        continuity_equation(
-            &tank.x, &tank.y, &tank.z, &tank.u,
-            &tank.v, &tank.w, &tank.h, &mut tank.arho,
-
-            &tank.x, &tank.y, &tank.z, &tank.u,
-            &tank.v, &tank.w, &tank.m, tank.nnps_idx,
-            &nnps, &kernel
-        );
-
-        continuity_equation(
-            &tank.x, &tank.y, &tank.z, &tank.u,
-            &tank.v, &tank.w, &tank.h, &mut tank.arho,
-
-            &fluid.x, &fluid.y, &fluid.z, &fluid.u,
-            &fluid.v, &fluid.w, &fluid.m, fluid.nnps_idx,
-            &nnps, &kernel
-        );
-
-        equation_of_state(&mut fluid.p, &fluid.rho, 1000., 1., 1.);
-        equation_of_state(&mut tank.p, &tank.rho, 1000., 1., 1.);
-        // equation_of_state(&mut fluid.p, &fluid.rho, 1000., 1., 1.*(2.*9.81*0.05717));
-        // equation_of_state(&mut tank.p, &tank.rho, 1000., 1., 1.*(2.*9.81*0.05717));
+        continuity_eq_macro!(tank, fluid, nnps, kernel);
+        continuity_eq_macro!(tank, tank, nnps, kernel);
 
         wcsph::equations::apply_gravity(
             &mut fluid.au, &mut fluid.av, &mut fluid.aw,
@@ -209,8 +143,6 @@ fn main() {
 
         fluid.rk2_stage_2(dt);
         tank.rk2_stage_2(dt);
-
-
 
         if step_no % pfreq == 0 {
             tank.write_vtk(format!("{}/tank_{}.vtk", &dir_name, step_no));

@@ -32,23 +32,33 @@ pub fn apply_gravity(
     }
 }
 
+#[macro_export]
+macro_rules! apply_gravity_macro{
+    ($dest:ident, $gx:expr, $gy:expr, $gz:expr) => {
+        apply_gravity(
+            &mut $dest.au, &mut $dest.av, &mut $dest.aw,
+        );
+    };
+}
+
 /// Equation of state to compute the pressure from density and speed of sound
 /// See pg no 8, eq 3.7 in `Smoothed Particle Hydrodynamics A Study of the
 /// possibilities of SPH in hydraulic engineering`
-/// https://cg.informatik.uni-freiburg.de/publications/2007_SCA_SPH.pdf
 //
 // Use this equation in the following way
 //
 // equation_of_state(&mut d_p, &d_rho, rho_rest, gamma, c);
-pub fn equation_of_state(d_p: &mut [f32], d_rho: &[f32], rho_rest: f32, gamma: f32, c: f32) {
-    // B = c^2 \rho_0 / gamma
-    let b = c.powf(2.) * rho_rest / gamma;
+pub fn tait_equation(d_p: &mut [f32], d_cs: &mut [f32], d_rho: &[f32], rho0: f32,
+                     gamma: f32, c0: f32) {
+    let frac_1_rho0 = 1. / rho0;
+    let b = rho0 * c0 * c0 / gamma;
+    let frac_1_gamma = 1. / gamma;
+
     for i in 0..d_p.len() {
-        if d_rho[i] > rho_rest {
-            d_p[i] = b * ((d_rho[i] / rho_rest).powf(gamma) - 1.);
-        } else {
-            d_p[i] = 0.;
-        }
+        let ratio = d_rho[i] * frac_1_rho0;
+
+        d_p[i] = b * (ratio.powf(gamma) - 1.);
+        d_cs[i] = c0 * ratio.powf(frac_1_gamma);
     }
 }
 
@@ -116,8 +126,7 @@ macro_rules! continuity_eq_macro {
             &$source.x, &$source.y, &$source.z, &$source.u,
             &$source.v, &$source.w, &$source.m, $source.nnps_idx,
 
-            &$nnps,
-            &$kernel,
+            &$nnps, &$kernel,
         );
     };
 }
@@ -130,14 +139,15 @@ macro_rules! continuity_eq_macro {
 //                   &s_x, &s_y, &s_u, &s_v, &s_m, &s_p, &s_rho, s_nnps_id, &nnps, &kernel);
 pub fn momentum_equation(
     d_x: &[f32], d_y: &[f32], d_z: &[f32], d_u: &[f32], d_v: &[f32],
-    d_w: &[f32], d_h: &[f32], d_p: &[f32], d_rho: &[f32],
+    d_w: &[f32], d_h: &[f32], d_p: &[f32], d_rho: &[f32], d_cs: &[f32],
     d_au: &mut [f32], d_av: &mut [f32], d_aw: &mut [f32],
 
     s_x: &[f32], s_y: &[f32], s_z: &[f32], s_u: &[f32],
     s_v: &[f32], s_w: &[f32], s_h: &[f32], s_m: &[f32],
-    s_p: &[f32], s_rho: &[f32], s_nnps_id: usize,
+    s_p: &[f32], s_rho: &[f32], s_cs: &[f32], s_nnps_id: usize,
 
-    cs: f32, alpha: f32, nnps: &(dyn NNPSGeneric + Sync), kernel: &(dyn Kernel + Sync),)
+    alpha: f32, beta: f32,
+    nnps: &(dyn NNPSGeneric + Sync), kernel: &(dyn Kernel + Sync),)
 {
     d_au.par_iter_mut()
         .zip(d_av.par_iter_mut()
@@ -146,10 +156,22 @@ pub fn momentum_equation(
             let mut dwij = vec![0.; 3];
             let mut xij = vec![0.; 3];
             let mut uij = vec![0.; 3];
-            let (mut rij, mut hij, mut tmp, mut uij_dot_xij, mut rhoij, mut muij);
-            let mut art_vis = 0.;
+            let (
+                mut rij,
+                mut rij_2,
+                mut hij,
+                mut tmp,
+                mut uij_dot_xij,
+                mut muij,
+                mut piij,
+                mut cij,
+                mut tmpi,
+                mut tmpj,
+                mut frac_1_rhoij,
+            );
             let nbrs = nnps.get_neighbours(d_x[i], d_y[i], d_z[i], s_nnps_id);
             for &j in nbrs.iter() {
+                // common code
                 xij[0] = d_x[i] - s_x[j];
                 xij[1] = d_y[i] - s_y[j];
                 xij[2] = d_z[i] - s_z[j];
@@ -157,51 +179,89 @@ pub fn momentum_equation(
                 uij[1] = d_v[i] - s_v[j];
                 uij[2] = d_w[i] - s_w[j];
                 rij = (xij[0] * xij[0] + xij[1] * xij[1] + xij[2] * xij[2]).sqrt();
-
-                // compute the gradient
+                rij_2 = rij * rij;
                 kernel.get_dwij(&xij, &mut dwij, rij, d_h[i]);
+                // common code
+
+                let frac_1_rhoi2 = 1. / (d_rho[i] * d_rho[i]);
+                let frac_1_rhoj2 = 1. / (s_rho[j] * s_rho[j]);
+
+                uij_dot_xij = uij[0] * xij[0] + uij[1] * xij[1] + uij[2] * xij[2];
+                piij = 0.0;
 
                 // artificial viscosity
-                if alpha > 0. {
-                    uij_dot_xij = uij[0] * xij[0] + uij[1] * xij[1] + uij[2] * xij[2];
-                    if uij_dot_xij < 0. {
-                        hij = 0.5 * (d_h[i] + s_h[j]);
+                if uij_dot_xij < 0. {
+                    hij = 0.5 * (d_h[i] + s_h[j]);
+                    cij = 0.5 * (d_cs[i] + s_cs[j]);
+                    frac_1_rhoij = 1. / (0.5 * (d_rho[i] + s_rho[j]));
 
-                        rhoij = 0.5 * (d_rho[i] + s_rho[j]);
-                        muij = (hij * uij_dot_xij) / (rij.powf(2.) + (0.1 * hij).powf(2.));
-                        art_vis = -alpha * cs * muij / rhoij;
-                    } else {
-                        art_vis = 0.;
-                    }
-                };
+                    muij = (hij * uij_dot_xij)/(rij_2 + 1e-12);
 
-                tmp = s_m[j] * (d_p[i] / d_rho[i].powf(2.) + s_p[j] / s_rho[j].powf(2.)) + art_vis;
-                *d_au_i -= tmp * dwij[0];
-                *d_av_i -= tmp * dwij[1];
-                *d_aw_i -= tmp * dwij[2];
+                    piij = -alpha*cij*muij + beta*muij*muij;
+                    piij = piij*frac_1_rhoij;
+                }
+
+                tmpi = d_p[i] * frac_1_rhoi2;
+                tmpj = s_p[j] * frac_1_rhoj2;
+
+                tmp = tmpi + tmpj;
+
+                *d_au_i += -s_m[j] * (tmp + piij) * dwij[0];
+                *d_av_i += -s_m[j] * (tmp + piij) * dwij[1];
+                *d_aw_i += -s_m[j] * (tmp + piij) * dwij[2];
             }
         });
+}
+
+#[macro_export]
+macro_rules! momentum_eq_macro {
+    ($dest:ident, $source:ident, $nnps:ident, $kernel:ident, $alpha:expr, $beta:expr) => {
+        momentum_equation(
+            &$dest.x, &$dest.y, &$dest.z, &$dest.u, &$dest.v,
+            &$dest.w, &$dest.h, &$dest.p, &$dest.rho, &$dest.cs,
+            &mut $dest.au, &mut $dest.av, &mut $dest.aw,
+
+            &$source.x, &$source.y, &$source.z, &$source.u,
+            &$source.v, &$source.w, &$source.h, &$source.m,
+            &$source.p, &$source.rho, &$source.cs, $source.nnps_idx,
+
+            $alpha, $beta, &$nnps, &$kernel
+        );
+    };
 }
 
 pub fn continuity_and_momentum_equation(
     d_x: &[f32], d_y: &[f32], d_z: &[f32], d_u: &[f32], d_v: &[f32],
     d_w: &[f32], d_h: &[f32], d_p: &[f32], d_rho: &[f32],
-    d_c: &[f32], d_arho: &mut [f32],  d_au: &mut [f32], d_av: &mut [f32],
+    d_cs: &[f32], d_arho: &mut [f32],  d_au: &mut [f32], d_av: &mut [f32],
     d_aw: &mut [f32],
 
     s_x: &[f32], s_y: &[f32], s_z: &[f32], s_u: &[f32],
     s_v: &[f32], s_w: &[f32], s_h: &[f32], s_m: &[f32],
-    s_p: &[f32], s_rho: &[f32], s_c: &[f32], s_nnps_id: usize,
-    alpha: f32, nnps: &(dyn NNPSGeneric + Sync), kernel: &(dyn Kernel + Sync),)
+    s_p: &[f32], s_rho: &[f32], s_cs: &[f32], s_nnps_id: usize,
+
+    alpha: f32, beta: f32,
+    nnps: &(dyn NNPSGeneric + Sync), kernel: &(dyn Kernel + Sync),)
 {
-    d_au.par_iter_mut()
-        .zip(d_arho.par_iter_mut().zip(d_av.par_iter_mut().zip(d_aw.par_iter_mut().enumerate())))
+    d_arho.par_iter_mut()
+        .zip(d_au.par_iter_mut().zip(d_av.par_iter_mut().zip(d_aw.par_iter_mut().enumerate())))
         .for_each(|(d_arho_i, (d_au_i, (d_av_i, (i, d_aw_i))))| {
             let mut dwij = vec![0.; 3];
             let mut xij = vec![0.; 3];
             let mut uij = vec![0.; 3];
-            let (mut rij, mut cij, mut hij, mut tmp, mut uij_dot_xij, mut rhoij, mut muij);
-            let mut art_vis = 0.;
+            let (
+                mut rij,
+                mut rij_2,
+                mut hij,
+                mut tmp,
+                mut uij_dot_xij,
+                mut muij,
+                mut piij,
+                mut cij,
+                mut tmpi,
+                mut tmpj,
+                mut frac_1_rhoij,
+            );
             let nbrs = nnps.get_neighbours(d_x[i], d_y[i], d_z[i], s_nnps_id);
             for &j in nbrs.iter() {
                 xij[0] = d_x[i] - s_x[j];
@@ -211,28 +271,59 @@ pub fn continuity_and_momentum_equation(
                 uij[1] = d_v[i] - s_v[j];
                 uij[2] = d_w[i] - s_w[j];
                 rij = (xij[0] * xij[0] + xij[1] * xij[1] + xij[2] * xij[2]).sqrt();
+                rij_2 = rij * rij;
                 kernel.get_dwij(&xij, &mut dwij, rij, d_h[i]);
 
                 // continuity equation
                 *d_arho_i += s_m[j] * (uij[0] * dwij[0] + uij[1] * dwij[1] + uij[2] * dwij[2]);
+
+                let frac_1_rhoi2 = 1. / (d_rho[i] * d_rho[i]);
+                let frac_1_rhoj2 = 1. / (s_rho[j] * s_rho[j]);
+
+                uij_dot_xij = uij[0] * xij[0] + uij[1] * xij[1] + uij[2] * xij[2];
+                piij = 0.0;
+
                 // artificial viscosity
-                if alpha > 0. {
-                    uij_dot_xij = uij[0] * xij[0] + uij[1] * xij[1] + uij[2] * xij[2];
-                    cij = 0.5 * (d_c[i] + s_c[j]);
+                if uij_dot_xij < 0. {
                     hij = 0.5 * (d_h[i] + s_h[j]);
+                    cij = 0.5 * (d_cs[i] + s_cs[j]);
+                    frac_1_rhoij = 1. / (0.5 * (d_rho[i] + s_rho[j]));
 
-                    rhoij = 0.5 * (d_rho[i] + s_rho[j]);
-                    muij = (hij * uij_dot_xij) / (rij.powf(2.) + (0.1 * hij).powf(2.));
-                    art_vis = -alpha * cij * muij / rhoij;
-                };
+                    muij = (hij * uij_dot_xij)/(rij_2 + 1e-12);
 
-                tmp = s_m[j] * (d_p[i] / d_rho[i].powf(2.) + s_p[j] / s_rho[j].powf(2.)) + art_vis;
-                *d_au_i -= tmp * dwij[0];
-                *d_av_i -= tmp * dwij[1];
-                *d_aw_i -= tmp * dwij[2];
+                    piij = -alpha*cij*muij + beta*muij*muij;
+                    piij = piij*frac_1_rhoij;
+                }
 
+                tmpi = d_p[i] * frac_1_rhoi2;
+                tmpj = s_p[j] * frac_1_rhoj2;
+
+                tmp = tmpi + tmpj;
+
+                *d_au_i += -s_m[j] * (tmp + piij) * dwij[0];
+                *d_av_i += -s_m[j] * (tmp + piij) * dwij[1];
+                *d_aw_i += -s_m[j] * (tmp + piij) * dwij[2];
             }
         });
+}
+
+
+#[macro_export]
+macro_rules! continuity_and_momentum_eq_macro {
+    ($dest:ident, $source:ident, $nnps:ident, $kernel:ident, $alpha:expr, $beta:expr) => {
+        continuity_and_momentum_equation(
+            &$dest.x, &$dest.y, &$dest.z, &$dest.u, &$dest.v,
+            &$dest.w, &$dest.h, &$dest.p, &$dest.rho,
+            &$dest.cs,
+            &mut $dest.arho, &mut $dest.au, &mut $dest.av, &mut $dest.aw,
+
+            &$source.x, &$source.y, &$source.z, &$source.u, &$source.v,
+            &$source.w, &$source.h, &$source.m, &$source.p, &$source.rho, &$source.cs,
+            $source.nnps_idx,
+
+            $alpha, $beta, &$nnps, &$kernel,
+        );
+    };
 }
 
 impl RK2Integrator for WCSPH {

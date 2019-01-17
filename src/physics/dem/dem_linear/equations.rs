@@ -14,7 +14,7 @@ pub fn linear_dem_interparticle_force(
     d_tng_ctcs: &mut [Vec<HashMap<usize, TangCt>>],
 
     s_x: &[f32], s_y: &[f32], s_z: &[f32], s_u: &[f32],
-    s_v: &[f32], s_w: &[f32], s_m: &[f32], s_omega_x: &[f32],
+    s_v: &[f32], s_w: &[f32], s_omega_x: &[f32],
     s_omega_y: &[f32], s_omega_z: &[f32], s_dem_id:usize,
     s_nnps_id: usize,
 

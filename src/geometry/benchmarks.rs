@@ -142,15 +142,6 @@ pub fn create_2d_breaking_dam_geometry(
     let spacing = spacing.unwrap_or(0.001);
 
     // water column is 0.05717 m high. Ceate a grid of fluid block
-    // let (xf, yf) = grid_arange(
-    //     0.0,
-    //     0.05717 + spacing / 2.,
-    //     spacing,
-    //     0.0 ,
-    //     0.05717 + spacing / 2.,
-    //     spacing,
-    // );
-
     let add = 0.007;
     let (xf, yf) = grid_arange(
         0.0 + add,

@@ -2,16 +2,22 @@ extern crate prestige;
 
 // crates imports
 use prestige::{
+    continuity_and_momentum_eq_macro,
+    continuity_eq_macro,
+    momentum_eq_macro,
     contact_search::linked_nnps::{stash_2d, LinkedNNPS, WorldBounds},
     physics::sph::{
+        wcsph,
         kernel::CubicKernel,
         wcsph::equations::{
-            continuity_and_momentum_equation, continuity_equation, equation_of_state,
-            momentum_equation, reset_wcsph_entity, summation_density,
+            continuity_equation,
+            momentum_equation,
+            continuity_and_momentum_equation, tait_equation,
+            reset_wcsph_entity,
         },
         wcsph::WCSPH,
     },
-    print_no_part, setup_progress_bar, EulerIntegrator, WriteOutput,
+    print_no_part, setup_progress_bar, RK2Integrator, WriteOutput,
 };
 
 use prestige::geometry::grid_arange;
@@ -29,7 +35,7 @@ fn create_entites(spacing: f32) -> (WCSPH, WCSPH) {
     fluid1.h = vec![1.2 * spacing; xf1.len()];
     fluid1.u = vec![-1.0; xf1.len()];
 
-    let (xf2, yf2) = grid_arange(-1.0, 0.0, spacing, 0.0, 1.0, spacing);
+    let (xf2, yf2) = grid_arange(-0.1, 0.9, spacing, 0.0, 1.0, spacing);
     let mut fluid2 = WCSPH::new_with_xy(xf2.clone(), yf2, 1);
     let mf2 = 1000. * spacing.powf(2.);
     fluid2.rho = vec![1000.; xf2.len()];
@@ -41,6 +47,7 @@ fn create_entites(spacing: f32) -> (WCSPH, WCSPH) {
 }
 
 fn main() {
+    let c0 = 1.;
     let spacing = 0.04;
     let dim = 2;
 
@@ -81,115 +88,62 @@ fn main() {
     while t < tf {
         // stash the particles into the world's cells
         stash_2d(vec![&fluid1, &fluid2], &mut nnps);
-        // stash_2d(vec![&fluid1], &mut nnps);
 
         // https://cg.informatik.uni-freiburg.de/publications/2014_EG_SPH_STAR.pdf
         // ----------------------
         // Algorithm 1
         // ----------------------
+        fluid1.rk2_initialize();
+        fluid2.rk2_initialize();
+
+        //////////////
+        // stage 1  //
+        //////////////
+
+
         reset_wcsph_entity(&mut fluid1);
         reset_wcsph_entity(&mut fluid2);
 
-        continuity_equation(
-            &fluid1.x, &fluid1.y, &fluid1.z, &fluid1.u,
-            &fluid1.v, &fluid1.w, &fluid1.h, &mut fluid1.arho,
+        tait_equation(&mut fluid1.p, &mut fluid1.cs, &fluid1.rho, 1000., 7., c0);
+        tait_equation(&mut fluid2.p, &mut fluid2.cs, &fluid2.rho, 1000., 7., c0);
 
-            &fluid1.x, &fluid1.y, &fluid1.z, &fluid1.u,
-            &fluid1.v, &fluid1.w, &fluid1.m, fluid1.nnps_idx,
-            &nnps, &kernel
-        );
-        continuity_equation(
-            &fluid1.x, &fluid1.y, &fluid1.z, &fluid1.u,
-            &fluid1.v, &fluid1.w, &fluid1.h, &mut fluid1.arho,
+        continuity_and_momentum_eq_macro!(fluid1, fluid2, nnps, kernel, 0.0, 0.0);
+        continuity_and_momentum_eq_macro!(fluid1, fluid1, nnps, kernel, 0.0, 0.0);
 
-            &fluid2.x, &fluid2.y, &fluid2.z, &fluid2.u,
-            &fluid2.v, &fluid2.w, &fluid2.m, fluid2.nnps_idx,
-            &nnps, &kernel
-        );
-
-        continuity_equation(
-            &fluid2.x, &fluid2.y, &fluid2.z, &fluid2.u,
-            &fluid2.v, &fluid2.w, &fluid2.h, &mut fluid2.arho,
-
-            &fluid1.x, &fluid1.y, &fluid1.z, &fluid1.u,
-            &fluid1.v, &fluid1.w, &fluid1.m, fluid1.nnps_idx,
-            &nnps, &kernel
-        );
-        continuity_equation(
-            &fluid2.x, &fluid2.y, &fluid2.z, &fluid2.u,
-            &fluid2.v, &fluid2.w, &fluid2.h, &mut fluid2.arho,
-
-            &fluid2.x, &fluid2.y, &fluid2.z, &fluid2.u,
-            &fluid2.v, &fluid2.w, &fluid2.m, fluid2.nnps_idx,
-            &nnps, &kernel
-        );
-
-        equation_of_state(&mut fluid1.p, &fluid1.rho, 1000., 1., 1.*(2.*9.81*0.05717));
-        equation_of_state(&mut fluid2.p, &fluid2.rho, 1000., 1., 1.*(2.*9.81*0.05717));
-
-        momentum_equation(
-            &fluid1.x, &fluid1.y, &fluid1.z, &fluid1.u,
-            &fluid1.v, &fluid1.w, &fluid1.h, &fluid1.p,
-            &fluid1.rho,
-
-            &mut fluid1.au, &mut fluid1.av, &mut fluid1.aw,
-
-            &fluid1.x, &fluid1.y, &fluid1.z, &fluid1.u,
-            &fluid1.v, &fluid1.w, &fluid1.h, &fluid1.m,
-            &fluid1.p, &fluid1.rho, fluid1.nnps_idx,
-
-            10.*(2.*9.81*0.05717),
-            0.1, &nnps, &kernel);
-
-        momentum_equation(
-            &fluid1.x, &fluid1.y, &fluid1.z, &fluid1.u,
-            &fluid1.v, &fluid1.w, &fluid1.h, &fluid1.p,
-            &fluid1.rho,
-
-            &mut fluid1.au, &mut fluid1.av, &mut fluid1.aw,
-
-            &fluid2.x, &fluid2.y, &fluid2.z, &fluid2.u,
-            &fluid2.v, &fluid2.w, &fluid2.h, &fluid2.m,
-            &fluid2.p, &fluid2.rho, fluid2.nnps_idx,
-
-            10.*(2.*9.81*0.05717),
-            0.1, &nnps, &kernel);
-
-        momentum_equation(
-            &fluid2.x, &fluid2.y, &fluid2.z, &fluid2.u,
-            &fluid2.v, &fluid2.w, &fluid2.h, &fluid2.p,
-            &fluid2.rho,
-
-            &mut fluid2.au, &mut fluid2.av, &mut fluid2.aw,
-
-            &fluid1.x, &fluid1.y, &fluid1.z, &fluid1.u,
-            &fluid1.v, &fluid1.w, &fluid1.h, &fluid1.m,
-            &fluid1.p, &fluid1.rho, fluid1.nnps_idx,
-
-            10.*(2.*9.81*0.05717),
-            0.1, &nnps, &kernel);
-
-        momentum_equation(
-            &fluid2.x, &fluid2.y, &fluid2.z, &fluid2.u,
-            &fluid2.v, &fluid2.w, &fluid2.h, &fluid2.p,
-            &fluid2.rho,
-
-            &mut fluid2.au, &mut fluid2.av, &mut fluid2.aw,
-
-            &fluid2.x, &fluid2.y, &fluid2.z, &fluid2.u,
-            &fluid2.v, &fluid2.w, &fluid2.h, &fluid2.m,
-            &fluid2.p, &fluid2.rho, fluid2.nnps_idx,
-
-            10.*(2.*9.81*0.05717),
-            0.1, &nnps, &kernel);
+        continuity_and_momentum_eq_macro!(fluid2, fluid2, nnps, kernel, 0.0, 0.0);
+        continuity_and_momentum_eq_macro!(fluid2, fluid1, nnps, kernel, 0.0, 0.0);
 
         // wcsph::equations::apply_gravity(
         //     &mut fluid1.au, &mut fluid1.av, &mut fluid1.aw,
         //     0.0, -9.81, 0.0,
         // );
 
-        fluid1.euler_stage_1(dt);
-        fluid2.euler_stage_1(dt);
+        fluid1.rk2_stage_1(dt);
+        fluid2.rk2_stage_1(dt);
+
+        //////////////
+        // stage 2  //
+        //////////////
+
+        reset_wcsph_entity(&mut fluid1);
+        reset_wcsph_entity(&mut fluid2);
+
+        tait_equation(&mut fluid1.p, &mut fluid1.cs, &fluid1.rho, 1000., 7., c0);
+        tait_equation(&mut fluid2.p, &mut fluid2.cs, &fluid2.rho, 1000., 7., c0);
+
+        continuity_and_momentum_eq_macro!(fluid1, fluid2, nnps, kernel, 0.0, 0.0);
+        continuity_and_momentum_eq_macro!(fluid1, fluid1, nnps, kernel, 0.0, 0.0);
+
+        continuity_and_momentum_eq_macro!(fluid2, fluid2, nnps, kernel, 0.0, 0.0);
+        continuity_and_momentum_eq_macro!(fluid2, fluid1, nnps, kernel, 0.0, 0.0);
+
+        // wcsph::equations::apply_gravity(
+        //     &mut fluid1.au, &mut fluid1.av, &mut fluid1.aw,
+        //     0.0, -9.81, 0.0,
+        // );
+
+        fluid1.rk2_stage_2(dt);
+        fluid2.rk2_stage_2(dt);
 
         if step_no % pfreq == 0 {
             fluid2.write_vtk(format!("{}/fluid2_{}.vtk", &dir_name, step_no));

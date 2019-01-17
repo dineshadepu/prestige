@@ -38,7 +38,7 @@ pub struct WCSPH {
     pub aw: Vec<f32>,
     pub h: Vec<f32>,
     pub p: Vec<f32>,
-    pub c: Vec<f32>,
+    pub cs: Vec<f32>,
     pub nnps_idx: usize,
 }
 
@@ -67,7 +67,7 @@ impl WCSPH {
             aw: other_props.clone(),
             h: other_props.clone(),
             p: other_props.clone(),
-            c: other_props.clone(),
+            cs: other_props.clone(),
             nnps_idx: nnps_idx,
         }
     }
