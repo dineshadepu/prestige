@@ -107,11 +107,8 @@ fn main() {
         tait_equation(&mut fluid1.p, &mut fluid1.cs, &fluid1.rho, 1000., 7., c0);
         tait_equation(&mut fluid2.p, &mut fluid2.cs, &fluid2.rho, 1000., 7., c0);
 
-        continuity_and_momentum_eq_macro!(fluid1, fluid2, nnps, kernel, 0.0, 0.0);
-        continuity_and_momentum_eq_macro!(fluid1, fluid1, nnps, kernel, 0.0, 0.0);
-
-        continuity_and_momentum_eq_macro!(fluid2, fluid2, nnps, kernel, 0.0, 0.0);
-        continuity_and_momentum_eq_macro!(fluid2, fluid1, nnps, kernel, 0.0, 0.0);
+        continuity_and_momentum_eq_macro!(fluid1, (fluid2, fluid1), nnps, kernel, 0.0, 0.0);
+        continuity_and_momentum_eq_macro!(fluid2, (fluid2, fluid1), nnps, kernel, 0.0, 0.0);
 
         // wcsph::equations::apply_gravity(
         //     &mut fluid1.au, &mut fluid1.av, &mut fluid1.aw,
@@ -131,11 +128,8 @@ fn main() {
         tait_equation(&mut fluid1.p, &mut fluid1.cs, &fluid1.rho, 1000., 7., c0);
         tait_equation(&mut fluid2.p, &mut fluid2.cs, &fluid2.rho, 1000., 7., c0);
 
-        continuity_and_momentum_eq_macro!(fluid1, fluid2, nnps, kernel, 0.0, 0.0);
-        continuity_and_momentum_eq_macro!(fluid1, fluid1, nnps, kernel, 0.0, 0.0);
-
-        continuity_and_momentum_eq_macro!(fluid2, fluid2, nnps, kernel, 0.0, 0.0);
-        continuity_and_momentum_eq_macro!(fluid2, fluid1, nnps, kernel, 0.0, 0.0);
+        continuity_and_momentum_eq_macro!(fluid1, (fluid2, fluid1), nnps, kernel, 0.0, 0.0);
+        continuity_and_momentum_eq_macro!(fluid2, (fluid2, fluid1), nnps, kernel, 0.0, 0.0);
 
         // wcsph::equations::apply_gravity(
         //     &mut fluid1.au, &mut fluid1.av, &mut fluid1.aw,

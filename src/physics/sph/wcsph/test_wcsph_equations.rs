@@ -54,7 +54,7 @@ fn test_continuity_equation() {
     reset_wcsph_entity(&mut block2); // this will reset accelerations of density, velocity
 
     // Influence of block 2 on block 1
-    continuity_eq_macro!(block1, block2, nnps, kernel);
+    continuity_eq_macro!(block1, (block2), nnps, kernel);
     // since block 1 and block 2 are very far away and they wont interact
     // because no particle in block 2 is in the scaled smoothing radius of
     // particle 1
@@ -63,7 +63,7 @@ fn test_continuity_equation() {
     assert_eq!(block1.arho, vec![0.; block1.x.len()]);
 
     // Influence of block 1 on itself
-    continuity_eq_macro!(block1, block1, nnps, kernel);
+    continuity_eq_macro!(block1, (block1), nnps, kernel);
 
     // even this should not generate any change in the acceleration
     // because there is no relative velocity between the particles
@@ -86,7 +86,7 @@ fn test_continuity_equation() {
     // test_nbrs(vec![&block1, &block2], &nnps, radius);
 
     // Influence of block 2 on block 1
-    continuity_eq_macro!(block1, block2, nnps, kernel);
+    continuity_eq_macro!(block1, (block2), nnps, kernel);
     // Even though block 1 and block 2 are close, but the velocities are
     // zero, there wont be any acceleration in density
     assert_eq!(block1.arho, vec![0.; block1.x.len()]);
@@ -103,18 +103,18 @@ fn test_continuity_equation() {
     block2.u = vec![1.; block2.x.len()];
 
     // self influence will not lead to any acceleration
-    continuity_eq_macro!(block1, block1, nnps, kernel);
+    continuity_eq_macro!(block1, (block1), nnps, kernel);
     assert_eq!(block1.arho, vec![0.; block1.x.len()]);
-    continuity_eq_macro!(block2, block2, nnps, kernel);
+    continuity_eq_macro!(block2, (block2), nnps, kernel);
     assert_eq!(block2.arho, vec![0.; block2.x.len()]);
 
     // but other there is a cross influence
-    continuity_eq_macro!(block1, block2, nnps, kernel);
+    continuity_eq_macro!(block1, (block2), nnps, kernel);
     println!("{:?}", block1.arho );
     for arho_i in &block1.arho {
         assert!(*arho_i > 0.)
     }
-    continuity_eq_macro!(block2, block1, nnps, kernel);
+    continuity_eq_macro!(block2, (block1), nnps, kernel);
     for arho_i in &block2.arho {
         assert!(*arho_i > 0.)
     }

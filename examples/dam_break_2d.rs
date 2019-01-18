@@ -5,6 +5,7 @@ use prestige::{
     continuity_and_momentum_eq_macro,
     continuity_eq_macro,
     momentum_eq_macro,
+    xsph_macro,
     contact_search::linked_nnps::{stash_2d, LinkedNNPS, WorldBounds},
     physics::sph::{
         wcsph,
@@ -12,8 +13,11 @@ use prestige::{
         wcsph::equations::{
             continuity_equation,
             momentum_equation,
-            continuity_and_momentum_equation, tait_equation,
+            continuity_and_momentum_equation,
+            tait_equation,
+            tait_hgcorrection_equation,
             reset_wcsph_entity,
+            xsph_equation,
         },
         wcsph::WCSPH,
     },
@@ -21,6 +25,7 @@ use prestige::{
 };
 
 
+use prestige::contact_search::test_collision_detection::test_nbrs;
 use prestige::geometry::benchmarks::create_2d_breaking_dam_geometry;
 
 // std imports
@@ -33,12 +38,12 @@ fn create_entites(spacing: f32) -> (WCSPH, WCSPH) {
     let mc = 1000. * spacing.powf(2.);
     fluid.rho = vec![1000.; xc.len()];
     fluid.m = vec![mc; xc.len()];
-    fluid.h = vec![1.2 * spacing; xc.len()];
+    fluid.h = vec![1.4 * spacing; xc.len()];
     let mut tank = WCSPH::new_with_xy(xt.clone(), yt, 1);
     let rho_t = 1000.;
     let mt = rho_t * spacing.powf(3.);
     tank.m = vec![mt; xt.len()];
-    tank.h = vec![1.2 * spacing; xt.len()];
+    tank.h = vec![1.4 * spacing; xt.len()];
     tank.rho = vec![1000.; xt.len()];
 
     (fluid, tank)
@@ -46,8 +51,8 @@ fn create_entites(spacing: f32) -> (WCSPH, WCSPH) {
 
 fn main() {
     // simulation variables
-    let c0 = (2. as f32 * 9.81 * 0.05).sqrt();
-    let spacing = 0.003;
+    let c0 = 10. * (2. as f32 * 9.81 * 0.05).sqrt();
+    let spacing = 0.001;
     let dim = 2;
 
     let (mut fluid, mut tank) = create_entites(spacing);
@@ -62,11 +67,12 @@ fn main() {
         0.21,
         0.,
         0.,
-        2. * 1.2 * spacing,
+        2. * 1.4 * spacing,
     );
     let mut nnps = LinkedNNPS::new(2, &world_bounds, dim);
 
     // solver data
+
     let dt = 1e-4;
     let mut t = 0.;
     let tf = 0.5;
@@ -87,6 +93,7 @@ fn main() {
     while t < tf {
         // stash the particles into the world's cells
         stash_2d(vec![&fluid, &tank], &mut nnps);
+        // test_nbrs(vec![&fluid, &tank], &nnps, 2. * 1.2 * spacing);
 
         // https://cg.informatik.uni-freiburg.de/publications/2014_EG_SPH_STAR.pdf
         // ----------------------
@@ -94,7 +101,6 @@ fn main() {
         // ----------------------
         fluid.rk2_initialize();
         tank.rk2_initialize();
-
         //////////////
         // stage 1  //
         //////////////
@@ -103,14 +109,12 @@ fn main() {
         reset_wcsph_entity(&mut fluid);
         reset_wcsph_entity(&mut tank);
 
-        tait_equation(&mut fluid.p, &mut fluid.cs, &fluid.rho, 1000., 7., c0);
-        tait_equation(&mut tank.p, &mut tank.cs, &tank.rho, 1000., 7., c0);
+        tait_equation(&mut fluid.p, &mut fluid.cs, &fluid.rho, 1000., 1., c0);
+        tait_hgcorrection_equation(&mut tank.p, &mut tank.cs, &mut tank.rho, 1000., 1., c0);
 
-        continuity_and_momentum_eq_macro!(fluid, tank, nnps, kernel, 0.0, 0.0);
-        continuity_and_momentum_eq_macro!(fluid, fluid, nnps, kernel, 0.0, 0.0);
-
-        continuity_eq_macro!(tank, fluid, nnps, kernel);
-        continuity_eq_macro!(tank, tank, nnps, kernel);
+        continuity_eq_macro!(tank, (fluid), nnps, kernel);
+        continuity_and_momentum_eq_macro!(fluid, (tank, fluid), nnps, kernel, 0.1, 0.0);
+        // xsph_macro!(fluid, (fluid), nnps, kernel, 0.5);
 
         wcsph::equations::apply_gravity(
             &mut fluid.au, &mut fluid.av, &mut fluid.aw,
@@ -127,14 +131,12 @@ fn main() {
         reset_wcsph_entity(&mut fluid);
         reset_wcsph_entity(&mut tank);
 
-        tait_equation(&mut fluid.p, &mut fluid.cs, &fluid.rho, 1000., 7., c0);
-        tait_equation(&mut tank.p, &mut tank.cs, &tank.rho, 1000., 7., c0);
+        tait_equation(&mut fluid.p, &mut fluid.cs, &fluid.rho, 1000., 1., c0);
+        tait_hgcorrection_equation(&mut tank.p, &mut tank.cs, &mut tank.rho, 1000., 1., c0);
 
-        continuity_and_momentum_eq_macro!(fluid, tank, nnps, kernel, 0.0, 0.0);
-        continuity_and_momentum_eq_macro!(fluid, fluid, nnps, kernel, 0.0, 0.0);
-
-        continuity_eq_macro!(tank, fluid, nnps, kernel);
-        continuity_eq_macro!(tank, tank, nnps, kernel);
+        continuity_and_momentum_eq_macro!(fluid, (tank, fluid), nnps, kernel, 0.0, 0.0);
+        continuity_eq_macro!(tank, (fluid, tank), nnps, kernel);
+        // xsph_macro!(fluid, (fluid), nnps, kernel, 0.5);
 
         wcsph::equations::apply_gravity(
             &mut fluid.au, &mut fluid.av, &mut fluid.aw,
