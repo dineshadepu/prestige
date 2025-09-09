@@ -8,4 +8,5 @@ edition = "2024"
 [dependencies]
 paste = "1.0"
 rayon = "1.10.0"
-vtkio = "0.7"
+vtkio = "0.6"
+clap = { version = "4", features = ["derive"] }

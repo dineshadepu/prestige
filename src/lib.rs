@@ -2,21 +2,13 @@ use std::f64::consts::PI;
 use rayon::prelude::*;
 
 
-
 #[derive(Debug)]
 pub struct ParticlesDEM {
     pub name: String,
-    pub m: Vec<f64>,
-    pub rho: Vec<f64>,
-    pub moi: Vec<f64>,
-    pub radius: Vec<f64>,
-    pub youngs_mod: Vec<f64>,
-    pub poisson_ratio: Vec<f64>,
-    pub shear_mod: Vec<f64>,
+
     pub x: Vec<f64>,
     pub y: Vec<f64>,
     pub z: Vec<f64>,
-    pub neighbour_radius: Vec<f64>,
     pub u: Vec<f64>,
     pub v: Vec<f64>,
     pub w: Vec<f64>,
@@ -30,19 +22,37 @@ pub struct ParticlesDEM {
     pub tory: Vec<f64>,
     pub torz: Vec<f64>,
 
+    // Each particle influence radius
+    pub h: Vec<f64>,
+
+    pub m: Vec<f64>,
+    pub moi: Vec<f64>,
+    pub rho: Vec<f64>,
+    pub radius: Vec<f64>,
+    pub youngs_mod: Vec<f64>,
+    pub poisson_ratio: Vec<f64>,
+    pub shear_mod: Vec<f64>,
+
     // Properties to track the contacts
     pub dem_id: Vec<usize>,
-    pub total_no_dem_tng_pp_contacts: Vec<usize>,
-    pub dem_tng_pp_disp_idx: Vec<Vec<usize>>,
-    pub dem_tng_pp_dem_id: Vec<Vec<usize>>,
-    pub dem_tng_pp_disp_ss_x: Vec<Vec<f64>>,
-    pub dem_tng_pp_disp_ss_y: Vec<Vec<f64>>,
-    pub dem_tng_pp_disp_ss_z: Vec<Vec<f64>>,
+    pub total_no_dem_tng_ss_contacts: Vec<usize>,
+    pub dem_tng_disp_ss_idx: Vec<Vec<usize>>,
+    pub dem_tng_disp_ss_x: Vec<Vec<f64>>,
+    pub dem_tng_disp_ss_y: Vec<Vec<f64>>,
+    pub dem_tng_disp_ss_z: Vec<Vec<f64>>,
+    pub dem_tng_ss_dem_id: Vec<Vec<usize>>,
+
+    pub dem_tng_disp_sw_x: Vec<Vec<f64>>,
+    pub dem_tng_disp_sw_y: Vec<Vec<f64>>,
+    pub dem_tng_disp_sw_z: Vec<Vec<f64>>,
+
+    // Properties related to the nearest neighbour search
+    pub neighbours: Neighbours,
 }
 
 impl ParticlesDEM {
     #[allow(non_snake_case)]
-    pub fn new(dim: i64, name: String, x: &[f64], y: &[f64], z: &[f64], neighbour_radius: &[f64], rho: &[f64], radius: &[f64], dem_id: &[usize]) -> Self{
+    pub fn new(dim: i64, name: String, x: &[f64], y: &[f64], z: &[f64], h: &[f64], rho: &[f64], radius: &[f64], dem_id: &[usize]) -> Self{
         let n = x.len();
         assert_eq!(y.len(), n);
         assert_eq!(z.len(), n);
@@ -72,16 +82,6 @@ impl ParticlesDEM {
             x: x.to_vec(),
             y: y.to_vec(),
             z: z.to_vec(),
-            neighbour_radius: neighbour_radius.to_vec(),
-            rho: rho.to_vec(),
-            radius: radius.to_vec(),
-            m: m,
-            moi: moi,
-
-            // Initialize other fields to default values
-            youngs_mod: vec![1e6; n],
-            poisson_ratio: vec![0.23; n],
-            shear_mod: vec![1e4; n],
 
             u: vec![0.0; n],
             v: vec![0.0; n],
@@ -99,13 +99,30 @@ impl ParticlesDEM {
             tory: vec![0.0; n],
             torz: vec![0.0; n],
 
+            h: h.to_vec(),
+
+            m: m,
+            moi: moi,
+            rho: rho.to_vec(),
+            radius: radius.to_vec(),
+            youngs_mod: vec![1e6; n],
+            poisson_ratio: vec![0.23; n],
+            shear_mod: vec![1e4; n],
+
             dem_id: dem_id.to_vec(),
-            total_no_dem_tng_pp_contacts: vec![0; n],
-            dem_tng_pp_disp_idx: vec![Vec::new(); n],
-            dem_tng_pp_dem_id: vec![Vec::new(); n],
-            dem_tng_pp_disp_ss_x: vec![Vec::new(); n],
-            dem_tng_pp_disp_ss_y: vec![Vec::new(); n],
-            dem_tng_pp_disp_ss_z: vec![Vec::new(); n],
+
+            total_no_dem_tng_ss_contacts: vec![0; n],
+            dem_tng_disp_ss_idx: vec![Vec::new(); n],
+            dem_tng_ss_dem_id: vec![Vec::new(); n],
+            dem_tng_disp_ss_x: vec![Vec::new(); n],
+            dem_tng_disp_ss_y: vec![Vec::new(); n],
+            dem_tng_disp_ss_z: vec![Vec::new(); n],
+
+            dem_tng_disp_sw_x: vec![Vec::new(); n],
+            dem_tng_disp_sw_y: vec![Vec::new(); n],
+            dem_tng_disp_sw_z: vec![Vec::new(); n],
+
+            neighbours: Neighbours,
         }
     }
 
@@ -149,8 +166,8 @@ pub trait WriteOutput {
 
 
 impl WriteOutput for ParticlesDEM {
-    fn write_vtk(&mut self, output: String, t: f64) {}
-    fn write_hdf5(&mut self, output: String, t: f64) {}
+    fn write_vtk(&self, output: String, t: f64) {}
+    fn write_hdf5(&self, output: String, t: f64) {}
 }
 
 
@@ -209,33 +226,41 @@ impl GTVFStep for ParticlesDEM {
 
 /// Continuity equation to compute rate of change of density of a particle.
 //
-pub fn apply_hertz_contact_force_DEM(
-    d_x: &Vec<f64>, d_y: &Vec<f64>, d_z: &Vec<f64>, d_neighbour_radius: &Vec<f64>,
+pub fn apply_hertz_contact_force_ss_DEM(
+    d_x: &Vec<f64>, d_y: &Vec<f64>, d_z: &Vec<f64>,
     d_u: &Vec<f64>, d_v: &Vec<f64>, d_w: &Vec<f64>,
     d_wx: &Vec<f64>, d_wy: &Vec<f64>, d_wz: &Vec<f64>,
-    d_m: &Vec<f64>, d_rho: &Vec<f64>,
+    d_fx: &mut Vec<f64>, d_fy: &mut Vec<f64>, d_fz: &mut Vec<f64>,
+    d_torx: &mut Vec<f64>, d_tory: &mut Vec<f64>, d_torz: &mut Vec<f64>,
+
+    d_h: &Vec<f64>,
+
+    d_m: &Vec<f64>, d_moi: &Vec<f64>, d_rho: &Vec<f64>,
     d_radius: &Vec<f64>,
     d_youngs_mod: &Vec<f64>,
     d_poisson_ratio: &Vec<f64>,
     d_shear_mod: &Vec<f64>,
-    d_dem_id: &Vec<usize>,
-    d_total_no_dem_tng_pp_contacts: &mut Vec<usize>,
-    d_dem_tng_pp_disp_idx: &mut Vec<Vec<usize>>,
-    d_dem_tng_pp_dem_id: &mut Vec<Vec<usize>>,
-    d_dem_tng_pp_disp_ss_x: &mut Vec<Vec<f64>>,
-    d_dem_tng_pp_disp_ss_y: &mut Vec<Vec<f64>>,
-    d_dem_tng_pp_disp_ss_z: &mut Vec<Vec<f64>>,
-    d_fx: &mut Vec<f64>, d_fy: &mut Vec<f64>, d_fz: &mut Vec<f64>,
 
-    s_x: &Vec<f64>, s_y: &Vec<f64>, s_z: &Vec<f64>, s_neighbour_radius: &Vec<f64>,
+    d_dem_id: &Vec<usize>,
+
+    d_total_no_dem_tng_ss_contacts: &mut Vec<usize>,
+    d_dem_tng_disp_ss_idx: &mut Vec<Vec<usize>>,
+    d_dem_tng_ss_dem_id: &mut Vec<Vec<usize>>,
+    d_dem_tng_disp_ss_x: &mut Vec<Vec<f64>>,
+    d_dem_tng_disp_ss_y: &mut Vec<Vec<f64>>,
+    d_dem_tng_disp_ss_z: &mut Vec<Vec<f64>>,
+
+    s_x: &Vec<f64>, s_y: &Vec<f64>, s_z: &Vec<f64>,
     s_u: &Vec<f64>, s_v: &Vec<f64>, s_w: &Vec<f64>,
     s_wx: &Vec<f64>, s_wy: &Vec<f64>, s_wz: &Vec<f64>,
+    s_h: &Vec<f64>,
     s_m: &Vec<f64>, s_rho: &Vec<f64>,
     s_radius: &Vec<f64>,
     s_youngs_mod: &Vec<f64>,
     s_poisson_ratio: &Vec<f64>,
     s_shear_mod: &Vec<f64>,
     s_dem_id: &Vec<usize>,
+    s_neighbours: &Neighbours,
 
     // time and time step
     t: f64, dt: f64,
@@ -247,25 +272,30 @@ pub fn apply_hertz_contact_force_DEM(
         .par_iter_mut()
         .zip(d_fy.par_iter_mut())
         .zip(d_fz.par_iter_mut())
-        .zip(d_total_no_dem_tng_pp_contacts.par_iter_mut())
-        .zip(d_dem_tng_pp_disp_idx.par_iter_mut())
-        .zip(d_dem_tng_pp_dem_id.par_iter_mut())
-        .zip(d_dem_tng_pp_disp_ss_x.par_iter_mut())
-        .zip(d_dem_tng_pp_disp_ss_y.par_iter_mut())
-        .zip(d_dem_tng_pp_disp_ss_z.par_iter_mut())
+        .zip(d_torx.par_iter_mut())
+        .zip(d_tory.par_iter_mut())
+        .zip(d_torz.par_iter_mut())
+
+        .zip(d_total_no_dem_tng_ss_contacts.par_iter_mut())
+        .zip(d_dem_tng_disp_ss_idx.par_iter_mut())
+        .zip(d_dem_tng_ss_dem_id.par_iter_mut())
+        .zip(d_dem_tng_disp_ss_x.par_iter_mut())
+        .zip(d_dem_tng_disp_ss_y.par_iter_mut())
+        .zip(d_dem_tng_disp_ss_z.par_iter_mut())
         .enumerate()
         .for_each(
             |(
                 d_idx,
-                ((((((((d_fx_i, d_fy_i), d_fz_i,),
-                      d_total_no_dem_tng_pp_contacts_i,), d_dem_tng_pp_disp_idx_i,),
-                    d_dem_tng_pp_dem_id_i,),
-                   d_dem_tng_pp_disp_ss_x_i,), d_dem_tng_pp_disp_ss_y_i,),
-                 d_dem_tng_pp_disp_ss_z_i,))| {
+                (((((((((((d_fx_i, d_fy_i), d_fz_i,), d_torx_i,), d_tory_i,), d_torz_i,),
+                       d_total_no_dem_tng_ss_contacts_i,), d_dem_tng_disp_ss_idx_i,),
+                     d_dem_tng_ss_dem_id_i,),
+                    d_dem_tng_disp_ss_x_i,), d_dem_tng_disp_ss_y_i,),
+                  d_dem_tng_disp_ss_z_i,))| {
 
                 // We will replace this line with s_idx in neighbours
                 // Also compare the dem_id of this particle array
-                for s_idx in 0..s_m.len() {
+                let neighbours = s_neighbours.get_neighbours(radius);
+                for s_idx in neighbours{
                     if d_dem_id[d_idx] != s_dem_id[s_idx] || d_idx != s_idx {
                         // ========================================
                         // Initialize the common primitives
@@ -340,8 +370,8 @@ pub fn apply_hertz_contact_force_DEM(
                             // it to some value which will be overridden below
                             let mut found_at = usize::MAX;
 
-                            for k in 0..*d_total_no_dem_tng_pp_contacts_i {
-                                if s_idx == d_dem_tng_pp_disp_idx_i[k] && s_dem_id[s_idx] == d_dem_tng_pp_dem_id_i[k] {
+                            for k in 0..*d_total_no_dem_tng_ss_contacts_i {
+                                if s_idx == d_dem_tng_disp_ss_idx_i[k] && s_dem_id[s_idx] == d_dem_tng_ss_dem_id_i[k] {
                                     found = 1;
                                     found_at = k;
                                     break;
@@ -357,13 +387,13 @@ pub fn apply_hertz_contact_force_DEM(
                                 // count of the contacting indices
 
                                 // create a new index at the end of the tracking
-                                *d_total_no_dem_tng_pp_contacts_i += 1;
-                                found_at = (*d_total_no_dem_tng_pp_contacts_i - 1);
-                                d_dem_tng_pp_disp_idx_i.push(s_idx);
-                                d_dem_tng_pp_dem_id_i.push(s_dem_id[s_idx]);
-                                d_dem_tng_pp_disp_ss_x_i.push(0.0);
-                                d_dem_tng_pp_disp_ss_y_i.push(0.0);
-                                d_dem_tng_pp_disp_ss_z_i.push(0.0);
+                                *d_total_no_dem_tng_ss_contacts_i += 1;
+                                found_at = (*d_total_no_dem_tng_ss_contacts_i - 1);
+                                d_dem_tng_disp_ss_idx_i.push(s_idx);
+                                d_dem_tng_ss_dem_id_i.push(s_dem_id[s_idx]);
+                                d_dem_tng_disp_ss_x_i.push(0.0);
+                                d_dem_tng_disp_ss_y_i.push(0.0);
+                                d_dem_tng_disp_ss_z_i.push(0.0);
                             }
                             // Compute stiffness
 
@@ -414,9 +444,9 @@ pub fn apply_hertz_contact_force_DEM(
                             let vij_magn = (vel_ij[0]*vel_ij[0] + vel_ij[1]*vel_ij[1] + vel_ij[2]*vel_ij[2]).powf(0.5);
                             if (vij_magn < 1e-12) {
                                 // make the tangential displacement
-                                d_dem_tng_pp_disp_ss_x_i[found_at] = 0.;
-                                d_dem_tng_pp_disp_ss_y_i[found_at] = 0.;
-                                d_dem_tng_pp_disp_ss_z_i[found_at] = 0.;
+                                d_dem_tng_disp_ss_x_i[found_at] = 0.;
+                                d_dem_tng_disp_ss_y_i[found_at] = 0.;
+                                d_dem_tng_disp_ss_z_i[found_at] = 0.;
                             }
                             else{
                                 // the tangential vector is
@@ -437,21 +467,21 @@ pub fn apply_hertz_contact_force_DEM(
                                 }
 
                                 // this is correct
-                                let delta_lt_x_star = d_dem_tng_pp_disp_ss_x_i[found_at] + vel_ij[0] * dt;
-                                let delta_lt_y_star = d_dem_tng_pp_disp_ss_y_i[found_at] + vel_ij[1] * dt;
-                                let delta_lt_z_star = d_dem_tng_pp_disp_ss_z_i[found_at] + vel_ij[2] * dt;
+                                let delta_lt_x_star = d_dem_tng_disp_ss_x_i[found_at] + vel_ij[0] * dt;
+                                let delta_lt_y_star = d_dem_tng_disp_ss_y_i[found_at] + vel_ij[1] * dt;
+                                let delta_lt_z_star = d_dem_tng_disp_ss_z_i[found_at] + vel_ij[2] * dt;
 
                                 let delta_lt_dot_ti = (delta_lt_x_star * ti_x +
                                                        delta_lt_y_star * ti_y +
                                                        delta_lt_z_star * ti_z);
 
-                                d_dem_tng_pp_disp_ss_x_i[found_at] = delta_lt_dot_ti * ti_x;
-                                d_dem_tng_pp_disp_ss_y_i[found_at] = delta_lt_dot_ti * ti_y;
-                                d_dem_tng_pp_disp_ss_z_i[found_at] = delta_lt_dot_ti * ti_z;
+                                d_dem_tng_disp_ss_x_i[found_at] = delta_lt_dot_ti * ti_x;
+                                d_dem_tng_disp_ss_y_i[found_at] = delta_lt_dot_ti * ti_y;
+                                d_dem_tng_disp_ss_z_i[found_at] = delta_lt_dot_ti * ti_z;
 
-                                let ft_x_star = -kt * d_dem_tng_pp_disp_ss_x_i[found_at] - eta_t * vt_x;
-                                let ft_y_star = -kt * d_dem_tng_pp_disp_ss_y_i[found_at] - eta_t * vt_y;
-                                let ft_z_star = -kt * d_dem_tng_pp_disp_ss_z_i[found_at] - eta_t * vt_z;
+                                let ft_x_star = -kt * d_dem_tng_disp_ss_x_i[found_at] - eta_t * vt_x;
+                                let ft_y_star = -kt * d_dem_tng_disp_ss_y_i[found_at] - eta_t * vt_y;
+                                let ft_z_star = -kt * d_dem_tng_disp_ss_z_i[found_at] - eta_t * vt_z;
 
                                 let ft_magn = (ft_x_star*ft_x_star + ft_y_star*ft_y_star + ft_z_star*ft_z_star).powf(0.5);
                                 let fn_magn = (fn_x*fn_x + fn_y*fn_y + fn_z*fn_z).powf(0.5);
@@ -474,17 +504,16 @@ pub fn apply_hertz_contact_force_DEM(
                                                modified_delta_lt_z*modified_delta_lt_z).powf(0.5);
 
                                 if (lt_magn > 1e-12){
-                                    d_dem_tng_pp_disp_ss_x_i[found_at] = modified_delta_lt_x / lt_magn;
-                                    d_dem_tng_pp_disp_ss_y_i[found_at] = modified_delta_lt_y / lt_magn;
-                                    d_dem_tng_pp_disp_ss_z_i[found_at] = modified_delta_lt_z / lt_magn;
+                                    d_dem_tng_disp_ss_x_i[found_at] = modified_delta_lt_x / lt_magn;
+                                    d_dem_tng_disp_ss_y_i[found_at] = modified_delta_lt_y / lt_magn;
+                                    d_dem_tng_disp_ss_z_i[found_at] = modified_delta_lt_z / lt_magn;
                                 }
                                 else {
-                                    d_dem_tng_pp_disp_ss_x_i[found_at] = 0.;
-                                    d_dem_tng_pp_disp_ss_y_i[found_at] = 0.;
-                                    d_dem_tng_pp_disp_ss_z_i[found_at] = 0.;
+                                    d_dem_tng_disp_ss_x_i[found_at] = 0.;
+                                    d_dem_tng_disp_ss_y_i[found_at] = 0.;
+                                    d_dem_tng_disp_ss_z_i[found_at] = 0.;
                                 }
                             }
-
 
                             // Add force to the particle i due to contact with particle j
                             *d_fx_i += fn_x + tangential_frc_ss_x_i;
@@ -496,44 +525,162 @@ pub fn apply_hertz_contact_force_DEM(
             });
 }
 
-#[macro_export]
-macro_rules! apply_hertz_contact_force_DEM_macro {
+macro_rules! apply_hertz_contact_force_ss_DEM_macro {
     ($dest:ident, ($($sources:ident),*), $t:expr, $dt:expr, $cor_pp:expr, $friction_pp:expr) => {
         $(
-            apply_hertz_contact_force_DEM(
-                &$dest.x, &$dest.y, &$dest.z, &$dest.neighbour_radius,
+            apply_hertz_contact_force_ss_DEM(
+                // Destination (DEM) particle data
+                &$dest.x, &$dest.y, &$dest.z,
                 &$dest.u, &$dest.v, &$dest.w,
                 &$dest.wx, &$dest.wy, &$dest.wz,
-                &$dest.m, &$dest.rho,
+                &mut $dest.fx, &mut $dest.fy, &mut $dest.fz,
+                &mut $dest.torx, &mut $dest.tory, &mut $dest.torz,
+
+                &$dest.h,
+
+                &$dest.m, &$dest.moi, &$dest.rho,
                 &$dest.radius,
                 &$dest.youngs_mod,
                 &$dest.poisson_ratio,
                 &$dest.shear_mod,
-                &$dest.dem_id,
-                &mut $dest.total_no_dem_tng_pp_contacts,
-                &mut $dest.dem_tng_pp_disp_idx,
-                &mut $dest.dem_tng_pp_dem_id,
-                &mut $dest.dem_tng_pp_disp_ss_x,
-                &mut $dest.dem_tng_pp_disp_ss_y,
-                &mut $dest.dem_tng_pp_disp_ss_z,
-                &mut $dest.fx, &mut $dest.fy, &mut $dest.fz,
 
-                &$sources.x, &$sources.y, &$sources.z, &$sources.neighbour_radius,
+                &$dest.dem_id,
+
+                &mut $dest.total_no_dem_tng_ss_contacts,
+                &mut $dest.dem_tng_disp_ss_idx,
+                &mut $dest.dem_tng_ss_dem_id,
+                &mut $dest.dem_tng_disp_ss_x,
+                &mut $dest.dem_tng_disp_ss_y,
+                &mut $dest.dem_tng_disp_ss_z,
+
+                // Source (neighbor) particle data
+                &$sources.x, &$sources.y, &$sources.z,
                 &$sources.u, &$sources.v, &$sources.w,
                 &$sources.wx, &$sources.wy, &$sources.wz,
+                &$sources.neighbour_radius,
                 &$sources.m, &$sources.rho,
                 &$sources.radius,
                 &$sources.youngs_mod,
                 &$sources.poisson_ratio,
                 &$sources.shear_mod,
                 &$sources.dem_id,
+                &$sources.neighbours,
+
+                // Time
+                $t, $dt,
+
+                // Contact properties
+                $cor_pp, $friction_pp
+            );
+        )*
+    };
+}
+
+
+pub fn update_dem_tng_ss_contacts(
+    d_x: &Vec<f64>, d_y: &Vec<f64>, d_z: &Vec<f64>,
+    d_m: &Vec<f64>,
+    d_radius: &Vec<f64>,
+    d_dem_id: &Vec<usize>,
+
+    d_total_no_dem_tng_ss_contacts: &mut Vec<usize>,
+    d_dem_tng_disp_ss_idx: &mut Vec<Vec<usize>>,
+    d_dem_tng_ss_dem_id: &mut Vec<Vec<usize>>,
+    d_dem_tng_disp_ss_x: &mut Vec<Vec<f64>>,
+    d_dem_tng_disp_ss_y: &mut Vec<Vec<f64>>,
+    d_dem_tng_disp_ss_z: &mut Vec<Vec<f64>>,
+
+    s_x: &Vec<f64>, s_y: &Vec<f64>, s_z: &Vec<f64>,
+    s_m: &Vec<f64>,
+    s_radius: &Vec<f64>,
+    s_dem_id: &Vec<usize>,
+
+    // time and time step
+    t: f64, dt: f64,
+)
+{
+    d_total_no_dem_tng_ss_contacts
+        .par_iter_mut()
+        .zip(d_dem_tng_disp_ss_idx.par_iter_mut())
+        .zip(d_dem_tng_ss_dem_id.par_iter_mut())
+        .zip(d_dem_tng_disp_ss_x.par_iter_mut())
+        .zip(d_dem_tng_disp_ss_y.par_iter_mut())
+        .zip(d_dem_tng_disp_ss_z.par_iter_mut())
+        .enumerate()
+        .for_each(
+            |(d_idx,
+              (((((
+                  d_total_no_dem_tng_ss_contacts_i, d_dem_tng_disp_ss_idx_i,),
+                  d_dem_tng_ss_dem_id_i), d_dem_tng_disp_ss_x_i,), d_dem_tng_disp_ss_y_i,),
+               d_dem_tng_disp_ss_z_i,))| {
+                let mut count = 0;
+                let no_cnts_i = *d_total_no_dem_tng_ss_contacts_i;
+                let mut k = 0;
+                while count < no_cnts_i{
+                    let s_idx = d_dem_tng_disp_ss_idx_i[k];
+                    if d_dem_tng_ss_dem_id_i[k] == s_dem_id[s_idx] {
+                        // Positions
+                        let pos_i = [d_x[d_idx], d_y[d_idx], d_z[d_idx]];
+                        let pos_j = [s_x[s_idx], s_y[s_idx], s_z[s_idx]];
+
+                        // Vector from j to i
+                        let pos_ij = [
+                            pos_i[0] - pos_j[0],
+                            pos_i[1] - pos_j[1],
+                            pos_i[2] - pos_j[2],
+                        ];
+
+                        // Squared distance
+                        let r2ij = pos_ij[0].powi(2) + pos_ij[1].powi(2) + pos_ij[2].powi(2);
+                        // Distance
+                        let rij = r2ij.sqrt();
+
+                        // Overlap
+                        let overlap = d_radius[d_idx] + s_radius[s_idx] - rij;
+
+                        // This condition implies the particles are no more in contact
+                        if (overlap < 0.) {
+                            *d_total_no_dem_tng_ss_contacts_i -= 1;
+                            d_dem_tng_disp_ss_idx_i.remove(k);
+                            d_dem_tng_ss_dem_id_i.remove(k);
+                            d_dem_tng_disp_ss_x_i.remove(k);
+                            d_dem_tng_disp_ss_y_i.remove(k);
+                            d_dem_tng_disp_ss_z_i.remove(k);
+                        }
+                        else {
+                            k += 1;
+                        }
+                        count += 1;
+                    }
+                }
+            });
+}
+
+
+#[macro_export]
+macro_rules! update_dem_tng_ss_contacts_macro {
+    ($dest:ident, ($($sources:ident),*), $t:expr, $dt:expr) => {
+        $(
+            update_dem_tng_pp_contacts(
+                &$dest.x, &$dest.y, &$dest.z,
+                &$dest.m,
+                &$dest.radius,
+                &$dest.dem_id,
+
+                &mut $dest.total_no_dem_tng_ss_contacts,
+                &mut $dest.dem_tng_disp_ss_idx,
+                &mut $dest.dem_tng_ss_dem_id,
+                &mut $dest.dem_tng_disp_ss_x,
+                &mut $dest.dem_tng_disp_ss_y,
+                &mut $dest.dem_tng_disp_ss_z,
+
+                &$sources.x, &$sources.y, &$sources.z,
+                &$sources.m,
+                &$sources.radius,
+                &$sources.dem_id,
 
                 $t,
                 $dt,
-
-                $cor_pp,
-                $friction_pp,
-
             );
         )*
     };

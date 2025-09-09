@@ -46,7 +46,8 @@ fn main() {
         // neighbors->build( x, 0, x.size(), delta,
         //                   cell_ratio, mesh_min, mesh_max );
 
-        // apply_hertz_contact_force_DEM_macro!(sand, (sand, body, boundary), t, dt, 0.2, 0.3);
+        apply_hertz_contact_force_DEM_macro!(sand, (sand, body, boundary), t, dt, 0.2, 0.3);
+        update_dem_tng_pp_contacts_macro!(sand, (sand, body, boundary), t, dt);
 
         // println!("Updated fx: {:?}", sand.get_fx());
 
@@ -54,7 +55,7 @@ fn main() {
         sand.stage3(dt);
 
         // sand.output_particles( step );
-        sand.output_data(t);
+        // sand.output_data(t);
         t = t + dt;
     }
 }
