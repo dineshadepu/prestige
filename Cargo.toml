@@ -1,22 +1,12 @@
 [package]
-name = "prestige"
+name = "gpu_particles"
 version = "0.1.0"
-authors = ["dineshadepu <adepu.dinesh.a@gmail.com>"]
-edition = "2018"
-
+edition = "2024"
 
 [dependencies]
-rayon = "1.0.3"
-indicatif = "0.10.1"
-vtkio = "0.1.6"
-rand = "0.6"
-assert_approx_eq = "*"
-cgmath = "*"
-itertools-num = "0.1"
+anyhow = "1"
+cudarc = {path = "../cudarc/",  features=["cuda-13010"]}
 
-[dev-dependencies]
-criterion = "0.2"
-
-[[bench]]
-name = "bench_llnnps"
-harness = false
+[[example]]
+name = "two_balls"
+path = "examples/two_balls.rs"
