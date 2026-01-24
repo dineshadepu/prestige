@@ -64,24 +64,44 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    // ---- falling balls ----
+    // ---- falling balls (no overlap) ----
     let mut rng = rand::thread_rng();
     let n_ball = 300;
     let ball_rad = 0.15;
 
-    for _ in 0..n_ball {
+    let min_dist = 2.0 * ball_rad * 1.05;
+    let z_min = H - 2.0 * ball_rad;
+    let z_max = H + 1.0;
+
+    let mut centers: Vec<(f64, f64, f64)> = Vec::new();
+
+    while centers.len() < n_ball {
         let rxy = rng.r#gen::<f64>().sqrt() * (R - 2.0 * ball_rad);
         let th = rng.r#gen::<f64>() * 2.0 * PI;
 
         let xb = rxy * th.cos();
         let yb = rxy * th.sin();
-        let zb = H + 1.0 + rng.r#gen::<f64>();
+        let zb = z_min + (z_max - z_min) * rng.r#gen::<f64>();
 
-        x.extend_from_slice(&[xb, yb, zb]);
-        u.extend_from_slice(&[0.0, 0.0, 0.0]);
-        m.push(1.0);
-        r.push(ball_rad);
-        btype.push(1.0);
+        let mut ok = true;
+        for &(xj, yj, zj) in &centers {
+            let dx = xb - xj;
+            let dy = yb - yj;
+            let dz = zb - zj;
+            if dx * dx + dy * dy + dz * dz < min_dist * min_dist {
+                ok = false;
+                break;
+            }
+        }
+
+        if ok {
+            centers.push((xb, yb, zb));
+            x.extend_from_slice(&[xb, yb, zb]);
+            u.extend_from_slice(&[0.0, 0.0, 0.0]);
+            m.push(1.0);
+            r.push(ball_rad);
+            btype.push(1.0);
+        }
     }
 
     let n = (x.len() / 3) as u32;
