@@ -1,12 +1,18 @@
 [package]
-name = "gpu_particles"
+name = "gpu_particles_no_neighbours"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-anyhow = "1"
 cudarc = {path = "../cudarc/",  features=["cuda-13010"]}
+indicatif = "0.17"
+
+
 
 [[example]]
 name = "two_balls"
 path = "examples/two_balls.rs"
+
+[[example]]
+name = "bouncing_ball"
+path = "examples/bouncing_ball.rs"

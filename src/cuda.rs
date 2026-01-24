@@ -1,36 +1,35 @@
-use cudarc::driver::{CudaContext, CudaFunction, CudaStream, DriverError};
-use cudarc::nvrtc::Ptx;
+use cudarc::driver::*;
 use std::sync::Arc;
 
 pub type GpuResult<T> = Result<T, DriverError>;
 
 pub struct CudaManager {
-    ctx: Arc<CudaContext>,
+    pub ctx: Arc<CudaContext>,
 }
 
 impl CudaManager {
     pub fn new(device: usize) -> GpuResult<Self> {
-        let ctx = CudaContext::new(device)?;
-        Ok(Self { ctx: Arc::new(ctx) })
+        let ctx = CudaContext::new(device)?; // already Arc
+        Ok(Self { ctx })
     }
 
     pub fn new_stream(&self) -> GpuResult<Arc<CudaStream>> {
-        self.ctx.new_stream()
+        Ok(self.ctx.new_stream()?)
     }
 
-    pub fn load_module(&self, ptx_path: &str) -> GpuResult<ModuleHandle> {
-        let ptx = Ptx::from_file(ptx_path);
-        let module = self.ctx.load_module(ptx)?;
+    pub fn load_module(&self, path: &str) -> GpuResult<ModuleHandle> {
+        let ptx = std::fs::read_to_string(path).expect("Failed to read PTX file");
+        let module = self.ctx.load_module(ptx.into())?;
         Ok(ModuleHandle { module })
     }
 }
 
 pub struct ModuleHandle {
-    module: cudarc::driver::CudaModule,
+    pub module: Arc<CudaModule>,
 }
 
 impl ModuleHandle {
     pub fn get(&self, name: &str) -> GpuResult<CudaFunction> {
-        Ok(self.module.get_func(name)?)
+        Ok(self.module.load_function(name)?)
     }
 }
