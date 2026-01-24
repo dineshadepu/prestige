@@ -1,4 +1,3 @@
-use gpu_particles_no_neighbours::*;
 // Copyright (c) 2026 Dinesh Adepu
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,6 +10,7 @@ use gpu_particles_no_neighbours::*;
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+use simple_particles::*;
 use std::sync::Arc;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -57,7 +57,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 4. Forces
     // -----------------------------
     let kn = 1e4;
-    let cor = 0.0;
+    let cor = 1.0;
     let mu = 0.0;
 
     let mut reset = ResetForce::new(&particles, k_reset)?;

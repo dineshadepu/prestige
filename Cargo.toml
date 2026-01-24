@@ -1,5 +1,5 @@
 [package]
-name = "gpu_particles_no_neighbours"
+name = "simple_particles"
 version = "0.1.0"
 edition = "2024"
 
