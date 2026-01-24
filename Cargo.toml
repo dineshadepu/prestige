@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 cudarc = {path = "../cudarc/",  features=["cuda-13010"]}
 indicatif = "0.17"
+rand = "0.9.2"
 
 
 
@@ -16,3 +17,7 @@ path = "examples/two_balls.rs"
 [[example]]
 name = "bouncing_ball"
 path = "examples/bouncing_ball.rs"
+
+[[example]]
+name = "rain_in_tank"
+path = "examples/rain_in_tank.rs"

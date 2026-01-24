@@ -13,6 +13,8 @@
 
 use crate::DIM;
 use cudarc::driver::{CudaSlice, CudaStream, DriverError};
+use std::fs::File;
+use std::io::Write;
 use std::sync::Arc;
 
 pub type GpuResult<T> = Result<T, DriverError>;
@@ -58,5 +60,25 @@ impl Particles {
 
             stream,
         })
+    }
+    pub fn write_vtk(&self, step: usize) -> std::io::Result<()> {
+        let x_host = self.stream.clone_dtoh(&self.x).unwrap();
+        let n = x_host.len() / 3;
+
+        let fname = format!("out_{:06}.vtk", step);
+        let mut f = File::create(fname)?;
+
+        writeln!(f, "# vtk DataFile Version 3.0")?;
+        writeln!(f, "DEM particles")?;
+        writeln!(f, "ASCII")?;
+        writeln!(f, "DATASET POLYDATA")?;
+        writeln!(f, "POINTS {} double", n)?;
+
+        for i in 0..n {
+            let k = 3 * i;
+            writeln!(f, "{} {} {}", x_host[k], x_host[k + 1], x_host[k + 2])?;
+        }
+
+        Ok(())
     }
 }

@@ -12,6 +12,7 @@ void dem_stage1(
 
     int k = 3 * i;
 
+    if (m[i] <= 0.0) return;
     double inv_m = 1.0 / m[i];
     u[k+0] += (*half_dt) * force[k+0] * inv_m;
     u[k+1] += (*half_dt) * force[k+1] * inv_m;
@@ -49,6 +50,7 @@ void dem_stage3(
 
     int k = 3 * i;
 
+    if (m[i] <= 0.0) return;
     double inv_m = 1.0 / m[i];
     u[k+0] += (*half_dt) * force[k+0] * inv_m;
     u[k+1] += (*half_dt) * force[k+1] * inv_m;
