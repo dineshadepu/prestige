@@ -62,21 +62,94 @@ impl Particles {
         })
     }
     pub fn write_vtk(&self, step: usize) -> std::io::Result<()> {
+        use std::fs::File;
+        use std::io::Write;
+
+        // --------------------------------------------------
+        // Copy device → host
+        // --------------------------------------------------
+
         let x_host = self.stream.clone_dtoh(&self.x).unwrap();
+        let u_host = self.stream.clone_dtoh(&self.u).unwrap();
+        let f_host = self.stream.clone_dtoh(&self.force).unwrap();
+        let m_host = self.stream.clone_dtoh(&self.m).unwrap();
+        let r_host = self.stream.clone_dtoh(&self.rad).unwrap();
+
         let n = x_host.len() / 3;
 
         let fname = format!("out_{:06}.vtk", step);
         let mut f = File::create(fname)?;
 
+        // --------------------------------------------------
+        // Header
+        // --------------------------------------------------
+
         writeln!(f, "# vtk DataFile Version 3.0")?;
         writeln!(f, "DEM particles")?;
         writeln!(f, "ASCII")?;
         writeln!(f, "DATASET POLYDATA")?;
+
+        // --------------------------------------------------
+        // Points
+        // --------------------------------------------------
+
         writeln!(f, "POINTS {} double", n)?;
 
         for i in 0..n {
             let k = 3 * i;
-            writeln!(f, "{} {} {}", x_host[k], x_host[k + 1], x_host[k + 2])?;
+            writeln!(
+                f,
+                "{} {} {}",
+                x_host[k],
+                x_host[k + 1],
+                x_host[k + 2]
+            )?;
+        }
+
+        // --------------------------------------------------
+        // Point Data
+        // --------------------------------------------------
+
+        writeln!(f, "POINT_DATA {}", n)?;
+
+        // ---- Velocity vector ----
+        writeln!(f, "VECTORS velocity double")?;
+        for i in 0..n {
+            let k = 3 * i;
+            writeln!(
+                f,
+                "{} {} {}",
+                u_host[k],
+                u_host[k + 1],
+                u_host[k + 2]
+            )?;
+        }
+
+        // ---- Force vector ----
+        writeln!(f, "VECTORS force double")?;
+        for i in 0..n {
+            let k = 3 * i;
+            writeln!(
+                f,
+                "{} {} {}",
+                f_host[k],
+                f_host[k + 1],
+                f_host[k + 2]
+            )?;
+        }
+
+        // ---- Mass scalar ----
+        writeln!(f, "SCALARS mass double 1")?;
+        writeln!(f, "LOOKUP_TABLE default")?;
+        for i in 0..n {
+            writeln!(f, "{}", m_host[i])?;
+        }
+
+        // ---- Radius scalar ----
+        writeln!(f, "SCALARS radius double 1")?;
+        writeln!(f, "LOOKUP_TABLE default")?;
+        for i in 0..n {
+            writeln!(f, "{}", r_host[i])?;
         }
 
         Ok(())

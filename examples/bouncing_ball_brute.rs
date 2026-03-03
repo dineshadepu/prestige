@@ -62,7 +62,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let k_reset = module.get("reset_force")?;
     let k_gravity = module.get("gravity_force")?;
-    let k_dem = module.get("dem_full_neighbors")?;
+    let k_dem = module.get("dem_full_allpairs")?;
     let k_freeze_bdry = module.get("freeze_boundary_particles")?;
     let k_stage1 = module_i.get("dem_stage1")?;
     let k_stage2 = module_i.get("dem_stage2")?;
@@ -90,46 +90,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut integ = LeapfrogIntegrator::new(dt, &particles, k_stage1, k_stage2, k_stage3)?;
 
     // -----------------------------
-    // 6. Create the grid
-    // -----------------------------
-    let cell_size = 1.0;
-    let inv_h = 1.0 / cell_size;
-
-    let domain_min = Double3 {
-        x: -5.0,
-        y: -5.0,
-        z: -5.0,
-    };
-    let domain_max = Double3 {
-        x: 5.0,
-        y: 5.0,
-        z: 5.0,
-    };
-
-    let cell_num_x = ((domain_max.x - domain_min.x) * inv_h) as i32;
-    let cell_num_y = ((domain_max.y - domain_min.y) * inv_h) as i32;
-    let cell_num_z = ((domain_max.z - domain_min.z) * inv_h) as i32;
-
-    let ncell = (cell_num_x * cell_num_y * cell_num_z) as usize;
-    let np = particles.n_host[0] as usize;
-
-    let mut grid = Grid::new(
-        particles.stream.clone(),
-        np,
-        ncell,
-        cell_num_x,
-        cell_num_y,
-        cell_num_z,
-        inv_h,
-        domain_min,
-        domain_max,
-    )?;
-
-    // build once before loop
-    grid.build(&particles)?;
-
-    // -----------------------------
-    // 7. Time loop
+    // 6. Time loop
     // -----------------------------
     let file = File::create("ball_height.csv")?;
     let mut writer = BufWriter::new(file);
@@ -150,14 +111,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // x(n+1)
         integ.stage2(&mut particles)?;
 
-        grid.build(&particles)?;
-
         // clear forces
         reset.compute(&mut particles)?;
         // Apply gravity
         gravity.compute(&mut particles)?;
         // compute contact forces
-        dem.compute_with_neigbors(&mut particles, &mut grid)?;
+        dem.compute(&mut particles)?;
         // Freeze the boundary particles
         freeze_bdry.compute(&mut particles)?;
 

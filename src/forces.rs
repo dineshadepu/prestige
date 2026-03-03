@@ -11,6 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::grid::Grid;
 use crate::particles::Particles;
 use cudarc::driver::{CudaFunction, CudaSlice, DriverError, LaunchConfig, PushKernelArg};
 
@@ -18,6 +19,7 @@ pub type GpuResult<T> = Result<T, DriverError>;
 
 pub trait ForceModel {
     fn compute(&mut self, p: &mut Particles) -> GpuResult<()>;
+    fn compute_with_neigbors(&mut self, p: &mut Particles, grid: &mut Grid) -> GpuResult<()>;
 }
 
 pub struct ResetForce {
@@ -42,6 +44,9 @@ impl ForceModel for ResetForce {
         launch.arg(force);
         launch.arg(n);
         unsafe { launch.launch(cfg) }?;
+        Ok(())
+    }
+    fn compute_with_neigbors(&mut self, p: &mut Particles, grid: &mut Grid) -> GpuResult<()> {
         Ok(())
     }
 }
@@ -72,6 +77,9 @@ impl ForceModel for GravityForce {
         launch.arg(&self.g);
         launch.arg(n);
         unsafe { launch.launch(cfg) }?;
+        Ok(())
+    }
+    fn compute_with_neigbors(&mut self, p: &mut Particles, grid: &mut Grid) -> GpuResult<()> {
         Ok(())
     }
 }
@@ -135,6 +143,53 @@ impl ForceModel for DEMParticleParticleForce {
         unsafe { launch.launch(cfg) }?;
         Ok(())
     }
+
+    fn compute_with_neigbors(&mut self, p: &mut Particles, grid: &mut Grid) -> GpuResult<()> {
+        let n_host = p.n_host[0];
+
+        let Particles {
+            x,
+            u,
+            force,
+            m,
+            rad,
+            n,
+            ..
+        } = p;
+
+        let cfg = LaunchConfig::for_num_elems(n_host as u32);
+        let stream = p.stream.clone();
+        let mut launch = stream.launch_builder(&self.kernel);
+
+        // ---- particle data ----
+        launch.arg(x);
+        launch.arg(u);
+        launch.arg(force);
+        launch.arg(m);
+        launch.arg(rad);
+        launch.arg(n);
+
+        // ---- grid pointers ----
+        launch.arg(&grid.part_idx);
+        launch.arg(&grid.cell_beg);
+        launch.arg(&grid.cell_end);
+
+        // ---- grid meta ----
+        launch.arg(&grid.cell_num_x);
+        launch.arg(&grid.cell_num_y);
+        launch.arg(&grid.cell_num_z);
+        launch.arg(&grid.inv_h);
+        launch.arg(&grid.domain_min);
+
+        // ---- material ----
+        launch.arg(&self.kn);
+        launch.arg(&self.cor_pp);
+        launch.arg(&self.friction_pp);
+
+        unsafe { launch.launch(cfg) }?;
+
+        Ok(())
+    }
 }
 
 pub struct FreezeBdryForce {
@@ -165,6 +220,9 @@ impl ForceModel for FreezeBdryForce {
         launch.arg(body_type);
         launch.arg(n);
         unsafe { launch.launch(cfg) }?;
+        Ok(())
+    }
+    fn compute_with_neigbors(&mut self, p: &mut Particles, grid: &mut Grid) -> GpuResult<()> {
         Ok(())
     }
 }
