@@ -1,6 +1,6 @@
 use indicatif::{ProgressBar, ProgressStyle};
 use rand::Rng;
-use simple_particles::*;
+use prestige::*;
 use std::f64::consts::PI;
 use std::fs::File;
 use std::io::{BufWriter, Write};

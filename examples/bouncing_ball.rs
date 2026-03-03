@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 use indicatif::{ProgressBar, ProgressStyle};
-use simple_particles::*;
+use prestige::*;
 use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::sync::Arc;
