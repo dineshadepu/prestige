@@ -1,4 +1,5 @@
 pub mod equations;
+pub mod codegen;
 
 use prestige_macros::equation;
 use crate::equations::ir;
@@ -25,4 +26,28 @@ mod tests {
 
     }
 
+    use crate::equations::fuse::fuse;
+    use crate::codegen::simple_cpu::generate_simple_cpu;
+
+    #[test]
+    fn test_fusion() {
+
+        let eqs = vec![
+            eq1::ir(),
+        ];
+
+        for eq in &eqs {
+            debug_equation(eq);
+        }
+
+        let fused = fuse(eqs);
+
+        println!("Fused Reads: {:?}", fused.reads);
+        println!("Fused Writes: {:?}", fused.writes);
+
+        let code = generate_simple_cpu(&fused);
+
+        println!("Generated CPU Code:\n{}", code);
+
+    }
 }
